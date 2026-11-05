@@ -27,11 +27,35 @@ const SettingsView = (() => {
 
     const themeBtn = (v, l, ic) => `<button type="button" class="seg-btn ${theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${icon(ic, 'ic-xs')}${l}</button>`;
 
+    const d = Sync.describe();
+    const a = Auth.account || {};
+    const acctCard = Auth.mode === 'local'
+      ? `<section class="card toned tone-green span-12">
+          <h3 class="card-title">${ibadge('shield')}<span>Account e sincronizzazione<span class="sub">Versione locale aperta dal file sul PC</span></span></h3>
+          <p class="note-box" style="margin-top:0">I dati di questa versione restano <strong>solo in questo browser</strong>. L'accesso Microsoft, la sincronizzazione su OneDrive e l'installazione come app sono nella versione online:
+            <a href="${CONFIG.redirectUri}" target="_blank" rel="noopener">${CONFIG.redirectUri}</a>.<br>
+            Per portarci i dati: «Esporta backup» qui sotto, poi «Importa backup» nella versione online.</p>
+        </section>`
+      : `<section class="card toned tone-green span-12">
+          <h3 class="card-title">${ibadge('shield')}<span>Account e sincronizzazione<span class="sub">I dati sono nel tuo OneDrive, cartella «Apps/Dashboard Personale»</span></span></h3>
+          <div class="acct-panel">
+            <div class="acct-row"><span class="avatar lg" style="--pc:#3B5BDB">${U.esc(U.initials(a.name || a.username || '?'))}</span>
+              <div class="acct-id"><b>${U.esc(a.name || 'Account Microsoft')}</b><span>${U.esc(a.username || '')}</span></div></div>
+            <div class="sync-status" data-sync-tone="${d.tone}"><i class="sync-dot"></i><span data-sync-text>${U.esc(d.text)}</span></div>
+            <div class="data-actions">
+              ${Sync.status === 'auth' ? `<button class="btn btn-primary" data-act="relogin">${icon('user')}Riconnetti</button>` : `<button class="btn" data-act="sync-now">${icon('refresh')}Sincronizza ora</button>`}
+              ${PWA.canInstall ? `<button class="btn btn-primary" data-act="install">${icon('download')}Installa l'app</button>` : PWA.standalone ? `<span class="chip static" style="--c:#16A34A"><span class="dot"></span>App installata</span>` : ''}
+              <button class="btn btn-ghost" data-act="logout">Esci</button>
+            </div>
+          </div>
+        </section>`;
+
     root.innerHTML = `<div class="view settings">
       <header class="page-head"><div><h1 class="page-title">Impostazioni</h1>
-        <p class="page-sub">Etichette, progetti, persone e gestione dei dati</p></div></header>
+        <p class="page-sub">Account, etichette, progetti, persone e gestione dei dati</p></div></header>
       ${Store.persistOK ? '' : '<div class="banner">Attenzione: il browser non consente il salvataggio locale. Le modifiche andranno perse alla chiusura.</div>'}
       <div class="set-grid dash-grid">
+        ${acctCard}
         <section class="card toned tone-teal span-6">
           <h3 class="card-title">${ibadge('tag')}<span>Etichette base</span></h3>${base}
           <p class="form-hint" style="margin:10px 0 0">Le etichette con «In calendario di default» inviano automaticamente il task al calendario (modificabile sul singolo task).</p>
@@ -59,7 +83,9 @@ const SettingsView = (() => {
             ${Store.hasDemo() ? `<button class="btn" data-act="remove-demo">${icon('trash')}Rimuovi dati dimostrativi</button>` : ''}
             <button class="btn btn-ghost danger" data-act="reset-all">${icon('alert')}Azzera tutto</button>
           </div>
-          <p class="note-box warn">In questa versione prototipo i dati restano <strong>solo in questo browser, su questo dispositivo</strong>. Esporta un backup se inserisci dati reali: dalla v0.2 la sincronizzazione su OneDrive renderà i dati condivisi tra PC e telefono.</p>
+          ${Auth.mode === 'local'
+            ? '<p class="note-box warn">In questa versione locale i dati restano <strong>solo in questo browser, su questo dispositivo</strong>. Esporta un backup per portarli nella versione online.</p>'
+            : '<p class="note-box">Ogni modifica viene salvata subito su questo dispositivo e inviata a OneDrive appena c\'è rete. Il backup resta utile come copia di sicurezza, o per importare i dati dalla versione locale. «Azzera tutto» cancella i dati anche dagli altri dispositivi.</p>'}
         </section>
         <section class="card toned tone-amber span-6">
           <h3 class="card-title">${ibadge('sun')}<span>Aspetto</span></h3>

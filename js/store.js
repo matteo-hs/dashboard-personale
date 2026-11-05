@@ -1,6 +1,9 @@
 'use strict';
-/* Archivio dati locale (v0.1: localStorage del browser).
-   Nella v0.2 lo stesso modello verrà sincronizzato su OneDrive. */
+/* Archivio dati: copia completa nel browser (localStorage) + sincronizzazione su OneDrive (v0.2).
+   Regole di sincronizzazione:
+   - ogni task, etichetta e persona ha updatedAt; in caso di modifiche su due dispositivi vince la più recente;
+   - le eliminazioni lasciano una "lapide" in state.deleted (id → istante) così si propagano agli altri dispositivi;
+   - lo slittamento orario per giornata (dayPrefs) ha il suo istante ts. */
 
 const BASE_LABELS = [
   { id: 'didattica',    name: 'Attività Didattica', type: 'base', color: '#0D9488', autoCal: true },
@@ -20,49 +23,64 @@ const STATUS = {
 };
 const STATUS_ORDER = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 const STORE_KEY = 'hs-dashboard-v1';
+const TOMBSTONE_DAYS = 120;
 
 const Store = (() => {
   let state = null;
   let persistOK = true;
+  let version = 0; // contatore delle modifiche locali (serve alla sincronizzazione)
   const listeners = new Set();
+  const now = () => Date.now();
 
   const defaultState = () => ({
-    schema: 1,
+    schema: 2,
     tasks: [],
-    labels: BASE_LABELS.map(l => ({ ...l })),
+    labels: BASE_LABELS.map(l => ({ ...l, updatedAt: 0 })),
     people: [],
     dayPrefs: {},
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    deleted: {},
+    createdAt: now(),
+    updatedAt: now(),
   });
 
   function normalize(s) {
-    s = Object.assign(defaultState(), s || {});
+    s = Object.assign(defaultState(), JSON.parse(JSON.stringify(s || {})));
     if (!s.dayPrefs || typeof s.dayPrefs !== 'object') s.dayPrefs = {};
-    for (const b of BASE_LABELS) if (!s.labels.find(l => l.id === b.id)) s.labels.unshift({ ...b });
+    if (!s.deleted || typeof s.deleted !== 'object') s.deleted = {};
+    for (const b of BASE_LABELS) if (!s.labels.find(l => l.id === b.id)) s.labels.unshift({ ...b, updatedAt: 0 });
+    s.labels = s.labels.map(l => ({ updatedAt: 0, ...l }));
+    s.people = (s.people || []).map(p => ({ role: '', email: '', updatedAt: 0, ...p }));
     s.tasks = (s.tasks || []).map(t => ({
       labels: [], people: [], links: [], comments: [], notes: '', status: 'todo',
-      start: '', end: '', inCalendar: false, source: 'manual', ...t,
+      start: '', end: '', inCalendar: false, source: 'manual', updatedAt: 0, ...t,
     }));
+    for (const [k, v] of Object.entries(s.dayPrefs)) s.dayPrefs[k] = { m: 0, a: 0, ts: 0, ...v };
+    s.schema = 2;
     return s;
   }
 
-  function load() {
+  function load({ seed = true } = {}) {
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) { state = normalize(JSON.parse(raw)); return; }
     } catch (e) { persistOK = false; }
     state = defaultState();
-    seedDemo();
+    if (seed) seedDemo();
     save();
   }
   function save() {
-    state.updatedAt = Date.now();
+    state.updatedAt = now();
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); persistOK = true; }
     catch (e) { persistOK = false; }
   }
-  function commit() { save(); listeners.forEach(f => f()); }
+  function commit(source = 'local') {
+    save();
+    if (source === 'local') version++;
+    listeners.forEach(f => f(source));
+  }
   const subscribe = f => listeners.add(f);
+  const tomb = id => { state.deleted[id] = now(); };
+  const touch = x => { if (x) x.updatedAt = now(); };
 
   /* Ordinamenti */
   const byTime = (a, b) => {
@@ -81,15 +99,16 @@ const Store = (() => {
     const n = name.trim();
     const ex = projects().find(p => p.name.toLowerCase() === n.toLowerCase());
     if (ex) return ex;
-    const l = { id: U.uid(), name: n, type: 'project', color: PROJECT_COLORS[projects().length % PROJECT_COLORS.length], autoCal: false, ...extra };
+    const l = { id: U.uid(), name: n, type: 'project', color: PROJECT_COLORS[projects().length % PROJECT_COLORS.length], autoCal: false, ...extra, updatedAt: now() };
     state.labels.push(l);
     commit();
     return l;
   }
-  function updateLabel(id, patch) { const l = label(id); if (l) { Object.assign(l, patch); commit(); } }
+  function updateLabel(id, patch) { const l = label(id); if (l) { Object.assign(l, patch); touch(l); commit(); } }
   function deleteLabel(id) {
     state.labels = state.labels.filter(l => l.id !== id);
-    state.tasks.forEach(t => { t.labels = t.labels.filter(x => x !== id); });
+    tomb(id);
+    state.tasks.forEach(t => { if (t.labels.includes(id)) { t.labels = t.labels.filter(x => x !== id); touch(t); } });
     commit();
   }
   const tasksWithLabel = id => state.tasks.filter(t => t.labels.includes(id)).sort(byDateTime);
@@ -102,16 +121,17 @@ const Store = (() => {
     if (!n) return null;
     let p = state.people.find(x => x.name.toLowerCase() === n.toLowerCase());
     if (!p) {
-      p = { id: U.uid(), name: n, role: '', email: '', color: PERSON_COLORS[state.people.length % PERSON_COLORS.length], ...extra, name: n };
+      p = { id: U.uid(), name: n, role: '', email: '', color: PERSON_COLORS[state.people.length % PERSON_COLORS.length], ...extra, name: n, updatedAt: now() };
       state.people.push(p);
     }
     return p;
   }
   function addPerson(data) { const p = ensurePerson(data.name, data); if (p) commit(); return p; }
-  function updatePerson(id, patch) { const p = person(id); if (p) { Object.assign(p, patch); commit(); } }
+  function updatePerson(id, patch) { const p = person(id); if (p) { Object.assign(p, patch); touch(p); commit(); } }
   function deletePerson(id) {
     state.people = state.people.filter(p => p.id !== id);
-    state.tasks.forEach(t => { t.people = t.people.filter(x => x !== id); });
+    tomb(id);
+    state.tasks.forEach(t => { if (t.people.includes(id)) { t.people = t.people.filter(x => x !== id); touch(t); } });
     commit();
   }
   const tasksWithPerson = id => state.tasks.filter(t => t.people.includes(id)).sort(byDateTime);
@@ -124,14 +144,13 @@ const Store = (() => {
   const tasksBetween = (a, b) => state.tasks.filter(t => t.date >= a && t.date <= b).sort(byDateTime);
 
   function syncLinks(id, oldL, newL) { // i collegamenti diretti sono sempre reciproci
-    for (const o of oldL) if (!newL.includes(o)) { const x = task(o); if (x) x.links = x.links.filter(i => i !== id); }
-    for (const n of newL) { const x = task(n); if (x && !x.links.includes(id)) x.links.push(id); }
+    for (const o of oldL) if (!newL.includes(o)) { const x = task(o); if (x) { x.links = x.links.filter(i => i !== id); touch(x); } }
+    for (const n of newL) { const x = task(n); if (x && !x.links.includes(id)) { x.links.push(id); touch(x); } }
   }
   function addTask(data) {
-    const now = Date.now();
     const t = {
       id: U.uid(), title: '', date: U.todayISO(), start: '', end: '', labels: [], people: [], notes: '',
-      comments: [], status: 'todo', source: 'manual', links: [], createdAt: now, updatedAt: now, ...data,
+      comments: [], status: 'todo', source: 'manual', links: [], createdAt: now(), ...data, updatedAt: now(),
     };
     if (t.inCalendar === undefined) t.inCalendar = autoCal(t.labels);
     state.tasks.push(t);
@@ -142,7 +161,7 @@ const Store = (() => {
   function updateTask(id, patch) {
     const t = task(id); if (!t) return null;
     const oldLinks = [...t.links];
-    Object.assign(t, patch, { updatedAt: Date.now() });
+    Object.assign(t, patch, { updatedAt: now() });
     if (patch.links) syncLinks(id, oldLinks, patch.links);
     commit();
     return t;
@@ -151,11 +170,14 @@ const Store = (() => {
     const t = task(id); if (!t) return null;
     syncLinks(id, t.links, []);
     state.tasks = state.tasks.filter(x => x.id !== id);
+    tomb(id);
     commit();
     return t;
   }
   function restoreTask(t) {
+    delete state.deleted[t.id];
     t.links = t.links.filter(i => task(i));
+    t.updatedAt = now();
     state.tasks.push(t);
     syncLinks(t.id, [], t.links);
     commit();
@@ -165,11 +187,11 @@ const Store = (() => {
   const toggleCalendar = id => { const t = task(id); return updateTask(id, { inCalendar: !t.inCalendar }); };
   function addComment(id, text) {
     const t = task(id); if (!t || !text.trim()) return;
-    t.comments.push({ id: U.uid(), text: text.trim(), ts: Date.now() });
-    t.updatedAt = Date.now();
+    t.comments.push({ id: U.uid(), text: text.trim(), ts: now() });
+    touch(t);
     commit();
   }
-  function deleteComment(id, cid) { const t = task(id); if (!t) return; t.comments = t.comments.filter(c => c.id !== cid); commit(); }
+  function deleteComment(id, cid) { const t = task(id); if (!t) return; t.comments = t.comments.filter(c => c.id !== cid); touch(t); commit(); }
 
   /* Task collegati: diretti + stessa etichetta di progetto */
   function related(id) {
@@ -187,19 +209,83 @@ const Store = (() => {
   }
 
   /* Preferenze per giornata: slittamento di 30' di mattina (m) e pomeriggio (a) */
-  const dayPref = iso => ({ m: 0, a: 0, ...(state.dayPrefs[iso] || {}) });
+  const dayPref = iso => { const p = state.dayPrefs[iso] || {}; return { m: p.m || 0, a: p.a || 0 }; };
   function setDayPref(iso, patch) {
-    const p = { ...dayPref(iso), ...patch };
-    if (!p.m && !p.a) delete state.dayPrefs[iso]; else state.dayPrefs[iso] = p;
+    state.dayPrefs[iso] = { ...dayPref(iso), ...patch, ts: now() };
     commit();
   }
+
+  /* ---------- Sincronizzazione: unione di due stati ---------- */
+  function signature(s) {
+    const out = [];
+    s.tasks.forEach(t => out.push(`t${t.id}:${t.updatedAt || 0}`));
+    s.labels.forEach(l => out.push(`l${l.id}:${l.updatedAt || 0}`));
+    s.people.forEach(p => out.push(`p${p.id}:${p.updatedAt || 0}`));
+    Object.entries(s.dayPrefs).forEach(([k, v]) => out.push(`d${k}:${v.ts || 0}`));
+    Object.keys(s.deleted).forEach(k => out.push(`x${k}`));
+    return out.sort().join('|');
+  }
+  function mergeStates(a, b) {
+    const deleted = { ...b.deleted };
+    for (const [k, v] of Object.entries(a.deleted)) deleted[k] = Math.max(deleted[k] || 0, v);
+    const limit = now() - TOMBSTONE_DAYS * 86400000;
+    for (const [k, v] of Object.entries(deleted)) if (v < limit) delete deleted[k];
+    const coll = (x, y) => {
+      const map = new Map();
+      for (const r of y) map.set(r.id, r);
+      for (const r of x) { const o = map.get(r.id); if (!o || (r.updatedAt || 0) > (o.updatedAt || 0)) map.set(r.id, r); }
+      return [...map.values()].filter(r => !(deleted[r.id] && deleted[r.id] >= (r.updatedAt || 0)));
+    };
+    const m = {
+      ...a,
+      tasks: coll(a.tasks, b.tasks).map(t => ({ ...t, links: [...t.links] })),
+      labels: coll(a.labels, b.labels),
+      people: coll(a.people, b.people),
+      dayPrefs: { ...b.dayPrefs },
+      deleted,
+    };
+    for (const [k, v] of Object.entries(a.dayPrefs)) if (!m.dayPrefs[k] || (v.ts || 0) > (m.dayPrefs[k].ts || 0)) m.dayPrefs[k] = v;
+    for (const b0 of BASE_LABELS) if (!m.labels.find(l => l.id === b0.id)) m.labels.unshift({ ...b0, updatedAt: 0 });
+    // coerenza dei riferimenti
+    const ids = new Set(m.tasks.map(t => t.id));
+    const lids = new Set(m.labels.map(l => l.id));
+    const pids = new Set(m.people.map(p => p.id));
+    m.tasks.forEach(t => {
+      t.links = t.links.filter(i => ids.has(i) && i !== t.id);
+      t.labels = t.labels.filter(i => lids.has(i));
+      t.people = t.people.filter(i => pids.has(i));
+    });
+    const byId = new Map(m.tasks.map(t => [t.id, t]));
+    m.tasks.forEach(t => t.links.forEach(i => { const o = byId.get(i); if (o && !o.links.includes(t.id)) o.links.push(t.id); }));
+    return m;
+  }
+  /* Unisce i dati arrivati da OneDrive in quelli locali. Ritorna se il remoto va aggiornato. */
+  function mergeIn(remoteRaw) {
+    if (!remoteRaw) return { remoteChanged: true, localChanged: false };
+    const remote = normalize(remoteRaw);
+    const merged = mergeStates(state, remote);
+    const sigM = signature(merged);
+    const localChanged = sigM !== signature(state);
+    const remoteChanged = sigM !== signature(remote);
+    if (localChanged) { state = merged; commit('remote'); }
+    return { remoteChanged, localChanged };
+  }
+  const snapshot = () => JSON.parse(JSON.stringify(state));
 
   /* Dati */
   const exportJSON = () => JSON.stringify(state, null, 2);
   function importJSON(text) {
     const obj = JSON.parse(text);
     if (!obj || !Array.isArray(obj.tasks) || !Array.isArray(obj.labels)) throw new Error('File non valido');
-    state = normalize(obj);
+    const incoming = normalize(obj);
+    const keep = new Set([...incoming.tasks, ...incoming.labels, ...incoming.people].map(x => x.id));
+    const deleted = { ...state.deleted };
+    [...state.tasks, ...state.labels, ...state.people].forEach(x => { if (!keep.has(x.id) && x.type !== 'base') deleted[x.id] = now(); });
+    const t = now();
+    [...incoming.tasks, ...incoming.labels, ...incoming.people].forEach(x => { x.updatedAt = t; delete deleted[x.id]; });
+    Object.values(incoming.dayPrefs).forEach(v => { v.ts = t; });
+    incoming.deleted = deleted;
+    state = incoming;
     commit();
   }
   const hasDemo = () => state.tasks.some(t => t.demo) || state.people.some(p => p.demo) || state.labels.some(l => l.demo);
@@ -207,19 +293,29 @@ const Store = (() => {
     const ids = new Set(state.tasks.filter(t => t.demo).map(t => t.id));
     const demoLabels = new Set(state.labels.filter(l => l.demo).map(l => l.id));
     const demoPeople = new Set(state.people.filter(p => p.demo).map(p => p.id));
+    [...ids, ...demoLabels, ...demoPeople].forEach(tomb);
     state.tasks = state.tasks.filter(t => !t.demo);
     state.labels = state.labels.filter(l => !l.demo);
     state.people = state.people.filter(p => !p.demo);
     state.tasks.forEach(t => {
+      const before = JSON.stringify([t.links, t.labels, t.people]);
       t.links = t.links.filter(i => !ids.has(i));
       t.labels = t.labels.filter(x => !demoLabels.has(x));
       t.people = t.people.filter(x => !demoPeople.has(x));
+      if (JSON.stringify([t.links, t.labels, t.people]) !== before) touch(t);
     });
     commit();
   }
-  function resetAll() { state = defaultState(); commit(); }
+  function resetAll() {
+    const deleted = { ...state.deleted };
+    [...state.tasks, ...state.people, ...state.labels.filter(l => l.type !== 'base')].forEach(x => { deleted[x.id] = now(); });
+    state = defaultState();
+    state.deleted = deleted;
+    state.labels.forEach(touch);
+    commit();
+  }
 
-  /* Dati dimostrativi (relativi alla data del primo avvio) */
+  /* Dati dimostrativi (solo nella versione locale da file) */
   function seedDemo() {
     const T = U.todayISO(), D = n => U.addDays(T, n);
     const P = name => addProject(name, { demo: true }).id;
@@ -242,17 +338,18 @@ const Store = (() => {
     add({ title: 'Scadenza invio domanda Bando STEM', date: D(6), labels: [bando], source: 'calendar', inCalendar: true, links: [bz] });
     add({ title: 'Playtest TACTIVITY con classe pilota', date: D(7), start: '10:00', labels: ['didattica', tact], people: [bianchi] });
     add({ title: 'Sopralluogo aula per il Campus', date: D(-1), start: '12:00', labels: ['sede', campus], status: 'done', links: [bud] });
-    add({ title: 'Simulazione Monte Carlo – regole v3', date: D(-2), start: '15:00', labels: [tact], status: 'done', comments: [{ id: U.uid(), text: 'Bilanciamento ok, rivedere la durata media della partita.', ts: Date.now() - 2 * 86400000 }] });
+    add({ title: 'Simulazione Monte Carlo – regole v3', date: D(-2), start: '15:00', labels: [tact], status: 'done', comments: [{ id: U.uid(), text: 'Bilanciamento ok, rivedere la durata media della partita.', ts: now() - 2 * 86400000 }] });
     add({ title: 'Inviare preventivo extracurricolare', date: D(-1), labels: ['sede'], status: 'todo' });
   }
 
   return {
-    load, subscribe, get persistOK() { return persistOK; },
+    load, subscribe, get persistOK() { return persistOK; }, get version() { return version; },
     byTime, byDateTime,
     label, labels, baseLabels, projects, autoCal, addProject, updateLabel, deleteLabel, tasksWithLabel,
     person, people, ensurePerson, addPerson, updatePerson, deletePerson, tasksWithPerson,
     task, allTasks, tasksOn, calendarTasksOn, tasksBetween, addTask, updateTask, deleteTask, restoreTask,
     setStatus, toggleDone, toggleCalendar, addComment, deleteComment, related, relatedCount, dayPref, setDayPref,
+    mergeIn, snapshot, mergeStates, normalize, signature,
     exportJSON, importJSON, hasDemo, removeDemo, resetAll,
   };
 })();

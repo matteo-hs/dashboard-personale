@@ -120,7 +120,7 @@ const UI = (() => {
       });
     });
   }
-  function toast(msg, action) {
+  function toast(msg, action, { sticky = false } = {}) {
     const t = U.h('<div class="toast"><span></span></div>');
     t.firstChild.textContent = msg;
     if (action) {
@@ -128,7 +128,13 @@ const UI = (() => {
       b.addEventListener('click', () => { action.run(); t.remove(); });
       t.append(b);
     }
+    if (sticky) {
+      const x = U.h(`<button class="toast-btn toast-x" aria-label="Chiudi">${icon('x')}</button>`);
+      x.addEventListener('click', () => t.remove());
+      t.append(x);
+    }
     document.getElementById('toasts').append(t);
+    if (sticky) return;
     setTimeout(() => t.classList.add('out'), action ? 5200 : 2600);
     setTimeout(() => t.remove(), action ? 5600 : 3000);
   }

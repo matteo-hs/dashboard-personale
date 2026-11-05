@@ -531,7 +531,8 @@ select.input-sm { padding: 0 8px; width: auto; }
 
 /* Foglio della giornata a righe orarie */
 .sheet { padding: 22px 22px 16px; }
-.sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+.sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.sheet-head > div { min-width: 0; }
 .sheet-head .ttl { font-weight: 700; font-size: 16.5px; line-height: 1.25; }
 .sheet-head .sub { font-size: 12.5px; color: var(--muted); }
 .sec { --sc: #D97706; margin-top: 16px; border-radius: 16px; padding: 12px 14px 4px; background: color-mix(in srgb, var(--sc) 5%, var(--surface)); border: 1px solid color-mix(in srgb, var(--sc) 17%, var(--border)); }
@@ -795,3 +796,57 @@ select.input-sm { padding: 0 8px; width: auto; }
 .person-fields { display: grid; grid-template-columns: 1.2fr 1fr 1.3fr; gap: 8px; flex: 1; min-width: 0; }
 @media (max-width: 700px) { .person-fields { grid-template-columns: 1fr; } }
 .banner { background: var(--warning-soft); color: var(--text); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); padding: 10px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 13.5px; }
+
+/* ============ ACCESSO E SINCRONIZZAZIONE (v0.2) ============ */
+body.locked .sidebar, body.locked .bottom-nav { display: none; }
+body.locked .app { grid-template-columns: 1fr; }
+body.locked .main { padding: 0; }
+body[data-page="login"] { --page: #3B5BDB; --page2: #7C3AED; }
+.login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.login-card {
+  width: 100%; max-width: 440px; text-align: center; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 26px; padding: 36px 30px 28px; box-shadow: var(--shadow-lg);
+}
+.brand-mark.lg { width: 72px; height: 72px; border-radius: 22px; font-size: 22px; margin: 0 auto 18px; }
+.login-card h1 { font-family: var(--font-display); font-size: 27px; margin: 0 0 6px; }
+.login-sub { color: var(--muted); margin: 0 0 24px; font-size: 14.5px; }
+.btn-lg { height: 50px; padding: 0 22px; font-size: 15.5px; border-radius: 14px; width: 100%; justify-content: center; }
+.btn[disabled] { opacity: .55; cursor: not-allowed; }
+.login-err { display: flex; gap: 10px; align-items: flex-start; text-align: left; background: var(--danger-soft); color: var(--danger); border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; font-size: 13.5px; font-weight: 600; }
+.login-err .ic { margin-top: 1px; }
+.login-points { list-style: none; padding: 0; margin: 24px 0 0; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.login-points li { display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: var(--text-2); padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.login-points .ic { color: var(--primary); width: 17px; height: 17px; }
+
+.acct-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.acct-row { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.acct-id { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.acct-id b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-id span { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-local { display: flex; gap: 8px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.acct-local .ic { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+.sync-line {
+  display: flex; align-items: center; gap: 7px; width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 10px;
+  padding: 6px 8px; font-size: 11.5px; font-weight: 600; color: var(--text-2); cursor: pointer; text-align: left;
+}
+.sync-line span { flex: 1; min-width: 0; line-height: 1.3; }
+.sync-line .ic { width: 14px; height: 14px; color: var(--muted); }
+.sync-line:hover { border-color: var(--border-strong); }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted-2); }
+[data-sync-tone="ok"] .sync-dot { background: var(--success); }
+[data-sync-tone="busy"] .sync-dot { background: var(--info); animation: pulse 1s ease-in-out infinite; }
+[data-sync-tone="warn"] .sync-dot { background: var(--warning); }
+[data-sync-tone="err"] .sync-dot { background: var(--danger); }
+@keyframes pulse { 50% { opacity: .3; } }
+.install-btn { width: 100%; justify-content: center; }
+.acct-panel { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+.acct-panel .acct-row { min-width: 220px; }
+.sync-status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--text-2); padding: 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.acct-panel .data-actions { margin-left: auto; }
+@media (max-width: 700px) { .acct-panel .data-actions { margin-left: 0; } }
+.net-pill { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px; z-index: 60; display: none; }
+.net-pill button { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); font-size: 12.5px; font-weight: 700; color: var(--text-2); cursor: pointer; }
+.net-pill button[disabled] { cursor: default; }
+@media (max-width: 860px) { .net-pill:not([hidden]) { display: block; } }
+.toast-x { color: #aab4c8; display: grid; place-items: center; }
+.toast-x .ic { width: 15px; height: 15px; }

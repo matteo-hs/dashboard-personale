@@ -3,8 +3,8 @@
 const MailView = (() => {
   function render(root) {
     const steps = [
-      ['Registrazione app in Microsoft Entra', 'Con l\'account amministratore del tenant Hub&Start: permessi lettura posta, lettura calendario, cartella app su OneDrive.', false],
-      ['Accesso con account Microsoft', 'Login solo con il tuo account aziendale (v0.2), sincronizzazione PC ↔ telefono tramite OneDrive.', false],
+      ['Registrazione app in Microsoft Entra', 'Fatta: permessi lettura posta, lettura calendario, cartella app su OneDrive; accesso riservato al tuo account.', true],
+      ['Accesso con account Microsoft', 'Login con il tuo account aziendale e sincronizzazione PC ↔ telefono tramite OneDrive (v0.2).', Auth.mode !== 'local' && !!Auth.account],
       ['Lettura posta e calendario Outlook', 'Elenco email recenti consultabile anche offline; eventi Outlook visibili in sola lettura nel calendario (v0.3).', false],
       ['Recap e task proposti', 'Attività Claude pianificata: risposte da inviare, cose da definire, priorità; i task arrivano come «proposti» da confermare (v0.4).', false],
     ];
