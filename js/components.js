@@ -42,6 +42,12 @@ const ICONS = {
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+  flag: '<path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/>',
+  clip: '<path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>',
+  external: '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
+  pin: '<path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>',
+  video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/>',
   refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/>',
 };
 const icon = (name, cls = '') =>
@@ -149,8 +155,40 @@ const UI = (() => {
   const personChip = p => `<span class="person" title="${U.esc(p.role || '')}"><span class="avatar" style="--pc:${p.color}">${U.esc(U.initials(p.name))}</span>${U.esc(p.name)}</span>`;
   const statusPill = s => `<span class="status-pill st-${s}">${statusDot(s)}${STATUS[s].label}</span>`;
   const taskColor = t => { const l = t.labels.map(Store.label).find(Boolean); return l ? l.color : 'var(--border-strong)'; };
-  const sourceBadge = t => t.source === 'calendar' ? `<span class="source-badge" title="Inserito dal calendario">${icon('calendar')}Da calendario</span>`
-    : t.source === 'email' ? `<span class="source-badge mail">${icon('mail')}Da email</span>` : '';
+  const safeUrl = u => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : '');
+  function sourceBadge(t) {
+    if (t.source === 'calendar') return `<span class="source-badge" title="Inserito dal calendario">${icon('calendar')}Da calendario</span>`;
+    if (t.source === 'email') return t.mailRef
+      ? `<button type="button" class="source-badge mail" data-act="open-mail" data-mail="${U.esc(t.mailRef.id)}" title="Apri l'email «${U.esc(t.mailRef.subject || '')}»">${icon('mail')}Da email</button>`
+      : `<span class="source-badge mail">${icon('mail')}Da email</span>`;
+    if (t.source === 'outlook') {
+      const u = safeUrl(t.eventRef && t.eventRef.webLink);
+      return u ? `<a class="source-badge ol" href="${U.esc(u)}" target="_blank" rel="noopener" title="Apri l'evento in Outlook">${icon('calendar')}Evento Outlook</a>`
+        : `<span class="source-badge ol">${icon('calendar')}Evento Outlook</span>`;
+    }
+    return '';
+  }
+
+  /* Riga evento Outlook (sola lettura) */
+  function eventLine(e) {
+    const st = Outlook.evTime(e), en = Outlook.evEnd(e);
+    const web = safeUrl(e.webLink), join = safeUrl(e.joinUrl);
+    return `<article class="ln ev ${e.cancelled ? 'st-cancelled' : ''}" data-ev="${U.esc(e.id)}">
+      <span class="ev-ic" title="Evento del calendario Outlook">${icon('calendar')}</span>
+      <div class="ln-main">
+        <div class="ln-head">${st ? `<span class="ln-time">${st}${en ? '–' + en : ''}</span>` : '<span class="ln-time">tutto il giorno</span>'}<span class="ln-title">${U.esc(e.subject)}</span></div>
+        <div class="ln-meta"><span class="source-badge ol">${icon('calendar')}Outlook</span>${e.cancelled ? statusPill('cancelled') : ''}
+          ${e.location ? `<span class="ev-meta">${icon('pin')}${U.esc(e.location)}</span>` : ''}
+          ${e.online ? `<span class="ev-meta">${icon('video')}Online</span>` : ''}
+          ${e.organizer && !e.isOrganizer ? `<span class="ev-meta">${icon('user')}${U.esc(e.organizer)}</span>` : ''}</div>
+      </div>
+      <div class="ln-acts">
+        ${join ? `<a class="act" href="${U.esc(join)}" target="_blank" rel="noopener" title="Partecipa alla riunione online" aria-label="Partecipa online">${icon('video')}</a>` : ''}
+        ${web ? `<a class="act" href="${U.esc(web)}" target="_blank" rel="noopener" title="Apri in Outlook" aria-label="Apri in Outlook">${icon('external')}</a>` : ''}
+        <button type="button" class="act" data-act="event-to-task" data-ev="${U.esc(e.id)}" title="Crea un task collegato (note, persone, progetto)" aria-label="Crea task collegato">${icon('calPlus')}</button>
+      </div>
+    </article>`;
+  }
 
   /* Riga task compatta per l'agenda a righe.
      La casella a sinistra è il comando "completa"; a destra: modifica, elimina, calendario, commenti, collegati. */
@@ -243,16 +281,23 @@ const UI = (() => {
   function openTaskEditor(task, defaults = {}) {
     const isNew = !task;
     const d = isNew
-      ? { title: '', date: defaults.date || U.todayISO(), start: defaults.start || '', end: defaults.end || '', labels: [...(defaults.labels || [])],
-          people: [], notes: '', status: 'todo', source: defaults.source || 'manual', links: [], inCalendar: defaults.inCalendar }
+      ? { title: defaults.title || '', date: defaults.date || U.todayISO(), start: defaults.start || '', end: defaults.end || '', labels: [...(defaults.labels || [])],
+          people: [], notes: defaults.notes || '', status: 'todo', source: defaults.source || 'manual', links: [], inCalendar: defaults.inCalendar }
       : JSON.parse(JSON.stringify(task));
     let calTouched = !isNew || defaults.inCalendar !== undefined;
     if (d.inCalendar === undefined) d.inCalendar = Store.autoCal(d.labels);
     let peopleSel = d.people.map(Store.person).filter(Boolean).map(p => ({ id: p.id, name: p.name, color: p.color }));
+    (defaults.people || []).forEach(x => { // persone suggerite (es. mittente dell'email)
+      const ex = Store.people().find(p => p.name.toLowerCase() === x.name.toLowerCase() || (x.email && (p.email || '').toLowerCase() === x.email.toLowerCase()));
+      if (!peopleSel.some(p => p.name.toLowerCase() === (ex ? ex.name : x.name).toLowerCase())) peopleSel.push(ex ? { id: ex.id, name: ex.name, color: ex.color } : { id: null, name: x.name, email: x.email });
+    });
+    const ref = isNew ? (defaults.extra || {}) : task;
     const newProjects = [];
 
     const form = U.h(`<form class="form" novalidate autocomplete="off">
       ${d.source === 'calendar' ? `<div class="form-note cal">${icon('calendar')}Task inserito dal calendario: comparirà anche nell'agenda del giorno.</div>` : ''}
+      ${d.source === 'email' && ref.mailRef ? `<div class="form-note mail">${icon('mail')}<span>Collegato all'email «${U.esc(ref.mailRef.subject || '')}»</span></div>` : ''}
+      ${d.source === 'outlook' ? `<div class="form-note ol">${icon('calendar')}<span>Collegato all'evento Outlook: l'evento resta già visibile in calendario, il task serve per note, persone e progetto.</span></div>` : ''}
       <div class="field"><label for="f-title">Titolo</label>
         <input id="f-title" class="input input-lg" name="title" autofocus placeholder="Cosa devi fare?" value="${U.esc(d.title)}"></div>
       <div class="row3">
@@ -377,12 +422,12 @@ const UI = (() => {
         const np = newProjects.find(p => p.id === id);
         return Store.addProject(np.name, { color: np.color }).id;
       });
-      const peopleIds = peopleSel.map(p => p.id || Store.ensurePerson(p.name).id);
+      const peopleIds = peopleSel.map(p => p.id || Store.ensurePerson(p.name, p.email ? { email: p.email } : {}).id);
       const data = {
         title, date: form.elements.date.value || d.date, start, end, labels: labelIds, people: peopleIds,
         notes: form.elements.notes.value.trim(), status: d.status, inCalendar: calBox.checked, links: d.links.filter(id => Store.task(id)),
       };
-      if (isNew) { Store.addTask({ ...data, source: d.source }); toast(data.inCalendar ? 'Task creato e visibile in calendario' : 'Task creato'); }
+      if (isNew) { Store.addTask({ ...data, source: d.source, ...(defaults.extra || {}) }); toast(data.inCalendar ? 'Task creato e visibile in calendario' : 'Task creato'); }
       else { Store.updateTask(task.id, data); toast('Modifiche salvate'); }
       m.close();
     }
@@ -391,7 +436,7 @@ const UI = (() => {
     form.elements.title.addEventListener('input', e => e.target.classList.remove('invalid'));
 
     const m = openModal({
-      title: isNew ? (d.source === 'calendar' ? 'Nuovo task in calendario' : 'Nuovo task') : 'Modifica task',
+      title: isNew ? ({ calendar: 'Nuovo task in calendario', email: 'Nuovo task da email', outlook: 'Task collegato all\'evento' }[d.source] || 'Nuovo task') : 'Modifica task',
       body: form,
       footer: [btn('Annulla', '', () => m.close()), btn(isNew ? 'Crea task' : 'Salva', 'btn-primary', save, 'check')],
     });
@@ -399,7 +444,7 @@ const UI = (() => {
 
   return {
     openModal, isModalOpen, closeAll, confirm, toast, btn, expanded,
-    labelChip, personChip, statusPill, taskColor, sourceBadge, taskLine, timeline, statsBlock,
+    labelChip, personChip, statusPill, taskColor, sourceBadge, taskLine, eventLine, safeUrl, timeline, statsBlock,
     showLabelTasks, showRelated, openTaskEditor,
   };
 })();
@@ -435,6 +480,15 @@ Object.assign(Actions, {
   goto: (id, el) => { UI.closeAll(); location.hash = `#/agenda/${el.dataset.date}`; },
   'new-task': (id, el) => UI.openTaskEditor(null, { date: el.dataset.date, start: el.dataset.start || '', end: el.dataset.end || '' }),
   'cal-add': (id, el) => UI.openTaskEditor(null, { date: el.dataset.date, source: 'calendar', inCalendar: true }),
+  'event-to-task': (id, el) => {
+    const e = Outlook.findEvent(el.dataset.ev); if (!e) return;
+    UI.openTaskEditor(null, {
+      date: e.start.slice(0, 10), start: Outlook.evTime(e), end: Outlook.evEnd(e), title: e.subject, labels: ['appuntamento'],
+      inCalendar: false, source: 'outlook',
+      notes: [e.location ? `Luogo: ${e.location}` : '', e.organizer && !e.isOrganizer ? `Organizzatore: ${e.organizer}` : ''].filter(Boolean).join('\n'),
+      extra: { eventRef: { id: e.id, webLink: e.webLink } },
+    });
+  },
   'move-today': id => { Store.updateTask(id, { date: U.todayISO() }); UI.toast('Spostato a oggi'); },
 });
 Object.assign(Changes, {

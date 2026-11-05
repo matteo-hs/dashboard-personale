@@ -16,12 +16,16 @@ const CalendarView = (() => {
     const T = U.todayISO();
     const d = U.fromISO(iso);
     const wd = (d.getDay() + 6) % 7;
-    const items = Store.calendarTasksOn(iso);
+    const tasks = Store.calendarTasksOn(iso).map(t => ({ k: 't', t, time: t.start || '' }));
+    const evs = Prefs.get('outlookCal') ? Outlook.eventsOn(iso).map(e => ({ k: 'e', e, time: Outlook.evTime(e) })) : [];
+    const items = [...tasks, ...evs].sort((a, b) => (a.time || '00:00') < (b.time || '00:00') ? -1 : 1);
     const max = 3;
-    const itemsHTML = items.slice(0, max).map(t =>
-      `<span class="cal-item st-${t.status}" style="--c:${UI.taskColor(t)}" title="${U.esc(t.title)} · ${STATUS[t.status].label}">${statusDot(t.status)}
-        <span class="t">${t.start ? `<b>${t.start}</b> ` : ''}${U.esc(t.title)}</span></span>`).join('');
-    const dots = items.slice(0, 5).map(t => `<i class="st-${t.status}" style="--c:${UI.taskColor(t)}"></i>`).join('');
+    const itemsHTML = items.slice(0, max).map(x => x.k === 't'
+      ? `<span class="cal-item st-${x.t.status}" style="--c:${UI.taskColor(x.t)}" title="${U.esc(x.t.title)} · ${STATUS[x.t.status].label}">${statusDot(x.t.status)}
+        <span class="t">${x.t.start ? `<b>${x.t.start}</b> ` : ''}${U.esc(x.t.title)}</span></span>`
+      : `<span class="cal-item ev ${x.e.cancelled ? 'st-cancelled' : ''}" title="${U.esc(x.e.subject)} · evento Outlook">${icon('calendar', 'ev-dot')}
+        <span class="t">${x.time ? `<b>${x.time}</b> ` : ''}${U.esc(x.e.subject)}</span></span>`).join('');
+    const dots = items.slice(0, 5).map(x => x.k === 't' ? `<i class="st-${x.t.status}" style="--c:${UI.taskColor(x.t)}"></i>` : `<i class="ev ${x.e.cancelled ? 'st-cancelled' : ''}" style="--c:var(--ol)"></i>`).join('');
     const cls = [inMonth ? '' : 'out', iso === T ? 'today' : '', iso === sel ? 'sel' : '', wd >= 5 ? 'weekend' : ''].join(' ');
     return `<button type="button" class="cal-cell ${cls}" data-act="cal-select" data-date="${iso}" aria-label="${U.cap(U.fmtLong(iso))}, ${items.length} attività">
       <span class="cal-num">${d.getDate()}</span>${itemsHTML}
@@ -70,6 +74,8 @@ const CalendarView = (() => {
     }
 
     const list = Store.calendarTasksOn(sel);
+    const evs = Prefs.get('outlookCal') ? Outlook.eventsOn(sel) : [];
+    [ym, shiftMonth(ym, -1), shiftMonth(ym, 1)].forEach(x => Outlook.ensureMonth(x));
     const others = Store.tasksOn(sel).length - list.length;
     const rel = U.relDay(sel);
 
@@ -92,19 +98,21 @@ const CalendarView = (() => {
         <div class="cal-legend">
           <span>${statusDot('todo')}Da fare</span><span>${statusDot('doing')}In corso</span><span>${statusDot('waiting')}In attesa</span>
           <span>${statusDot('done')}Completato</span><span>${statusDot('cancelled')}Annullato</span>
+          ${Prefs.get('outlookCal') && Auth.mode !== 'local' ? `<span class="lg-ol">${icon('calendar', 'ev-dot')}Evento Outlook</span>` : ''}
         </div>
       </div>
 
       <section class="card day-panel" id="day-panel">
         <div class="dp-head">
           <div><div class="dp-title">${U.cap(U.fmtLong(sel))}${rel ? ` · <span class="muted">${rel}</span>` : ''}</div>
-            <div class="dp-sub">${list.length ? `${list.length} ${list.length === 1 ? 'attività' : 'attività'} in calendario` : 'Nessuna attività in calendario'}</div></div>
+            <div class="dp-sub">${list.length ? `${list.length} attività in calendario` : 'Nessuna attività in calendario'}${evs.length ? ` · ${evs.length} ${evs.length === 1 ? 'evento' : 'eventi'} Outlook` : ''}</div></div>
           <div class="dp-actions">
             <button class="btn btn-primary" data-act="cal-add" data-date="${sel}">${icon('plus')}Aggiungi Task</button>
             <a class="btn" href="#/agenda/${sel}">${icon('book')}Apri agenda</a>
           </div>
         </div>
-        <div class="dp-list">${list.length ? list.map(panelRow).join('') : '<div class="empty">Giornata libera. Usa «Aggiungi Task» per inserire un\'attività.</div>'}</div>
+        <div class="dp-list">${list.length ? list.map(panelRow).join('') : (evs.length ? '' : '<div class="empty">Giornata libera. Usa «Aggiungi Task» per inserire un\'attività.</div>')}</div>
+        ${evs.length ? `<div class="sub-title" style="margin-top:18px">Dal calendario Outlook · sola lettura</div><div class="dp-list">${evs.map(UI.eventLine).join('')}</div>` : ''}
         ${others > 0 ? `<div class="dp-foot">${others} ${others === 1 ? 'altro task' : 'altri task'} in agenda non ${others === 1 ? 'è mostrato' : 'sono mostrati'} in calendario · <a href="#/agenda/${sel}">vai all'agenda</a></div>` : ''}
       </section>
     </div>`;

@@ -13,7 +13,7 @@ const Theme = {
 const App = (() => {
   const NAV = [
     { id: 'dashboard',    label: 'Dashboard',    short: 'Home',     icon: 'home' },
-    { id: 'posta',        label: 'Posta',        short: 'Posta',    icon: 'mail', soon: true },
+    { id: 'posta',        label: 'Posta',        short: 'Posta',    icon: 'mail' },
     { id: 'agenda',       label: 'Agenda',       short: 'Agenda',   icon: 'book' },
     { id: 'calendario',   label: 'Calendario',   short: 'Calend.',  icon: 'calendar' },
     { id: 'impostazioni', label: 'Impostazioni', short: 'Opzioni',  icon: 'settings' },
@@ -165,7 +165,13 @@ const App = (() => {
     Auth.subscribe(render);
     Sync.subscribe(renderChrome);
     PWA.subscribe(() => { renderChrome(); if (current === 'impostazioni') render(); });
+    Outlook.subscribe(() => {
+      if (!['posta', 'dashboard', 'agenda', 'calendario', 'impostazioni'].includes(current) || Auth.needsLogin()) return;
+      if (typingInMain() || UI.isModalOpen()) { pendingRender = true; return; }
+      render();
+    });
     Sync.init();
+    Outlook.init();
     PWA.init();
     render();
   }

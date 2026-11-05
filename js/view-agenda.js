@@ -37,16 +37,24 @@ const AgendaView = (() => {
   }
 
   /* ---------- Foglio a righe ---------- */
-  function sheetHTML(tasks) {
+  function sheetHTML(tasks, events) {
     const pref = Store.dayPref(date);
     const L = layout(pref);
-    const timed = tasks.filter(t => t.start);
+    // elementi con orario: task + eventi Outlook (sola lettura)
+    const timed = [
+      ...tasks.filter(t => t.start).map(t => ({ kind: 'task', o: t, s: sMin(t), e: eMin(t), title: t.title, end: t.end, color: UI.taskColor(t), off: t.status === 'cancelled' })),
+      ...events.filter(e => !e.allDay).map(e => {
+        const st = U.timeToMin(Outlook.evTime(e)), en = Outlook.evEnd(e);
+        return { kind: 'ev', o: e, s: st, e: en ? U.timeToMin(en) : (e.end.slice(0, 10) > e.start.slice(0, 10) ? 24 * 60 : st), title: e.subject, end: en || '24:00', color: 'var(--ol)', off: e.cancelled };
+      }),
+    ];
+    const line = it => (it.kind === 'task' ? UI.taskLine(it.o) : UI.eventLine(it.o));
     const isToday = date === U.todayISO();
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
-    const startingIn = (from, to) => timed.filter(t => sMin(t) >= from && sMin(t) < to);
-    const continuing = from => timed.filter(t => t.status !== 'cancelled' && sMin(t) < from && eMin(t) > from);
-    const contHTML = t => `<div class="ln-cont" style="--c:${UI.taskColor(t)}">${icon('cornerDR')}<b>${U.esc(t.title)}</b><span class="c-long">· prosegue fino alle ${t.end}</span><span class="c-short">→ ${t.end}</span></div>`;
+    const startingIn = (from, to) => timed.filter(t => t.s >= from && t.s < to).sort((a, b) => a.s - b.s);
+    const continuing = from => timed.filter(t => !t.off && t.s < from && t.e > from);
+    const contHTML = t => `<div class="ln-cont" style="--c:${t.color}">${icon('cornerDR')}<b>${U.esc(t.title)}</b><span class="c-long">· prosegue fino alle ${t.end}</span><span class="c-short">→ ${t.end}</span></div>`;
     const addBtn = (from, to, label) => `<button type="button" class="slot-add" data-act="new-task" data-date="${date}" data-start="${fmt(from)}" data-end="${fmt(to)}">${icon('plus')}<span>${label}</span></button>`;
     const plusBtn = (from, to) => `<button type="button" class="slot-plus" data-act="new-task" data-date="${date}" data-start="${fmt(from)}" data-end="${fmt(to)}" title="Aggiungi alle ${fmt(from)}" aria-label="Aggiungi alle ${fmt(from)}">${icon('plus')}</button>`;
 
@@ -59,22 +67,22 @@ const AgendaView = (() => {
         ? `<button type="button" class="shift-btn" data-act="shift" data-band="${band}" title="${shifted ? `Riporta l'inizio alle ${fmt(s.from - 30)}` : `Sposta l'inizio alle ${fmt(s.from + 30)}`}">${icon(shifted ? 'chevUp' : 'chevDown')}30′</button>` : '';
       return `<div class="slot ${now ? 'now' : ''}" data-slot="${fmt(s.from)}">
         <div class="slot-time"><b>${fmt(s.from)}</b><span>${fmt(s.to)}</span>${shift}${own.length ? plusBtn(s.from, s.to) : ''}</div>
-        <div class="slot-body">${cont.map(contHTML).join('')}${own.map(UI.taskLine).join('')}${own.length ? '' : addBtn(s.from, s.to, `Libero · aggiungi alle ${fmt(s.from)}`)}</div>
+        <div class="slot-body">${cont.map(contHTML).join('')}${own.map(line).join('')}${own.length ? '' : addBtn(s.from, s.to, `Libero · aggiungi alle ${fmt(s.from)}`)}</div>
       </div>`;
     }
 
     function secHead(cls, ic, name, range, n, preset) {
       return `<div class="sec-head"><span class="band-icon">${icon(ic)}</span>
         <div><div class="band-name">${name}</div><div class="band-range">${range}</div></div>
-        ${n ? `<span class="band-count">${n} ${n === 1 ? 'task' : 'task'}</span>` : ''}
+        ${n ? `<span class="band-count">${n} ${n === 1 ? 'impegno' : 'impegni'}</span>` : ''}
         <button class="btn btn-sm btn-ghost band-add" data-act="new-task" data-date="${date}" data-start="${preset}">${icon('plus')}Aggiungi</button></div>`;
     }
 
     // Mattina
-    const early = timed.filter(t => sMin(t) < L.mStart);
+    const early = timed.filter(t => t.s < L.mStart).sort((a, b) => a.s - b.s);
     const mCount = early.length + startingIn(L.mStart, L.mEnd).length;
     const earlyRow = early.length ? `<div class="slot early"><div class="slot-time"><b>Prima</b><span>delle ${fmt(L.mStart)}</span></div>
-      <div class="slot-body">${early.map(UI.taskLine).join('')}</div></div>` : '';
+      <div class="slot-body">${early.map(line).join('')}</div></div>` : '';
     const morning = `<div class="sec sec-morning">${secHead('morning', 'sunrise', 'Mattina', `${fmt(L.mStart)} – ${fmt(L.mEnd)}`, mCount, fmt(L.mStart))}
       <div class="slots">${earlyRow}${L.morning.map((s, i) => slotHTML(s, i, 'm')).join('')}</div></div>`;
 
@@ -82,7 +90,7 @@ const AgendaView = (() => {
     const lunchT = startingIn(L.mEnd, L.aStart);
     const lunchCont = continuing(L.mEnd);
     const lunch = `<div class="slot lunch"><div class="slot-time"><b>${fmt(L.mEnd)}</b><span>${fmt(L.aStart)}</span>${plusBtn(L.mEnd, L.aStart)}</div>
-      <div class="slot-body">${lunchCont.map(contHTML).join('')}${lunchT.map(UI.taskLine).join('')}${lunchT.length ? '' : `<span class="lunch-lbl">${icon('coffee')}Pausa</span>`}</div></div>`;
+      <div class="slot-body">${lunchCont.map(contHTML).join('')}${lunchT.map(line).join('')}${lunchT.length ? '' : `<span class="lunch-lbl">${icon('coffee')}Pausa</span>`}</div></div>`;
 
     // Pomeriggio
     const aCount = startingIn(L.aStart, L.aEnd).length;
@@ -90,11 +98,11 @@ const AgendaView = (() => {
       <div class="slots">${L.afternoon.map((s, i) => slotHTML(s, i, 'a')).join('')}</div></div>`;
 
     // Sera
-    const eve = timed.filter(t => sMin(t) >= L.aEnd);
+    const eve = timed.filter(t => t.s >= L.aEnd).sort((a, b) => a.s - b.s);
     const eveCont = continuing(L.aEnd);
     const evening = `<div class="sec sec-evening">${secHead('evening', 'moon', 'Sera', `dalle ${fmt(L.aEnd)}`, eve.length, '19:00')}
       <div class="slots"><div class="slot"><div class="slot-time"><b>${fmt(L.aEnd)}</b><span>in poi</span>${eve.length ? plusBtn(19 * 60, 20 * 60) : ''}</div>
-        <div class="slot-body">${eveCont.map(contHTML).join('')}${eve.map(UI.taskLine).join('')}${eve.length ? '' : addBtn(19 * 60, 20 * 60, 'Serata libera · aggiungi')}</div></div></div></div>`;
+        <div class="slot-body">${eveCont.map(contHTML).join('')}${eve.map(line).join('')}${eve.length ? '' : addBtn(19 * 60, 20 * 60, 'Serata libera · aggiungi')}</div></div></div></div>`;
 
     return `<section class="card sheet ag-sheet tone-teal">
       <div class="sheet-head">${ibadge('clock')}<div><div class="ttl">Agenda della giornata</div>
@@ -104,11 +112,13 @@ const AgendaView = (() => {
   }
 
   /* ---------- Card affiancate ---------- */
-  function todoHTML(tasks) {
+  function todoHTML(tasks, events) {
     const list = tasks.filter(t => !t.start);
+    const allDay = events.filter(e => e.allDay);
     return `<section class="card toned tone-teal ag-todo">
       <h3 class="card-title">${ibadge('list')}<span>In giornata<span class="sub">Attività senza orario</span></span>
         <button class="btn btn-sm btn-ghost band-add" data-act="new-task" data-date="${date}" data-start="">${icon('plus')}Aggiungi</button></h3>
+      ${allDay.length ? `<div class="todo-list" style="margin-bottom:8px">${allDay.map(UI.eventLine).join('')}</div>` : ''}
       ${list.length ? `<div class="todo-list">${list.map(UI.taskLine).join('')}</div>`
         : `<button type="button" class="slot-add" style="border:1.5px dashed var(--border-strong)" data-act="new-task" data-date="${date}" data-start="">${icon('plus')}<span style="opacity:1">Nessuna attività senza orario · aggiungi</span></button>`}
     </section>`;
@@ -158,6 +168,8 @@ const AgendaView = (() => {
     lastDate = date;
 
     const tasks = Store.tasksOn(date);
+    const events = Prefs.get('outlookAgenda') ? Outlook.eventsOn(date) : [];
+    Outlook.ensureMonth(date.slice(0, 7));
     const doneN = tasks.filter(t => t.status === 'done').length;
     const active = tasks.filter(t => t.status !== 'cancelled').length;
     const pct = active ? Math.round(doneN / active * 100) : 0;
@@ -191,9 +203,9 @@ const AgendaView = (() => {
           </div>
           <div class="dh-stats">${stats}</div>
         </div>
-        ${todoHTML(tasks)}
+        ${todoHTML(tasks, events)}
         ${peopleHTML(tasks)}
-        ${sheetHTML(tasks)}
+        ${sheetHTML(tasks, events)}
         ${nextHTML()}
       </div></div>
     </div>`;

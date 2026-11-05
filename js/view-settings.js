@@ -50,12 +50,25 @@ const SettingsView = (() => {
           </div>
         </section>`;
 
+    const oAt = Outlook.mailAt ? new Date(Outlook.mailAt) : null;
+    const outlookCard = Auth.mode === 'local' ? '' : `<section class="card toned tone-cyan span-12">
+        <h3 class="card-title">${ibadge('mail')}<span>Outlook<span class="sub">Posta e calendario in sola lettura${oAt ? ` · aggiornati alle ${U.pad(oAt.getHours())}:${U.pad(oAt.getMinutes())}` : ''}</span></span></h3>
+        ${Outlook.error ? `<div class="banner">${U.esc(Outlook.error)}</div>` : ''}
+        <div class="acct-panel">
+          <label class="chk"><input type="checkbox" data-change="pref" data-key="outlookAgenda" ${Prefs.get('outlookAgenda') ? 'checked' : ''}>Mostra le riunioni Outlook nell'agenda e in «Oggi»</label>
+          <label class="chk"><input type="checkbox" data-change="pref" data-key="outlookCal" ${Prefs.get('outlookCal') ? 'checked' : ''}>Mostra le riunioni Outlook nel calendario</label>
+          <div class="data-actions"><button class="btn" data-act="outlook-refresh">${icon('refresh')}Aggiorna posta e calendario</button></div>
+        </div>
+        <p class="form-hint" style="margin:12px 0 0">Le email e gli eventi restano salvati su questo dispositivo per la consultazione offline. L'app non modifica nulla in Outlook.</p>
+      </section>`;
+
     root.innerHTML = `<div class="view settings">
       <header class="page-head"><div><h1 class="page-title">Impostazioni</h1>
         <p class="page-sub">Account, etichette, progetti, persone e gestione dei dati</p></div></header>
       ${Store.persistOK ? '' : '<div class="banner">Attenzione: il browser non consente il salvataggio locale. Le modifiche andranno perse alla chiusura.</div>'}
       <div class="set-grid dash-grid">
         ${acctCard}
+        ${outlookCard}
         <section class="card toned tone-teal span-6">
           <h3 class="card-title">${ibadge('tag')}<span>Etichette base</span></h3>${base}
           <p class="form-hint" style="margin:10px 0 0">Le etichette con «In calendario di default» inviano automaticamente il task al calendario (modificabile sul singolo task).</p>
@@ -97,6 +110,7 @@ const SettingsView = (() => {
   }
 
   Object.assign(Changes, {
+    pref: el => { Prefs.set(el.dataset.key, el.checked); App.render(); },
     'label-color': el => Store.updateLabel(el.dataset.id, { color: el.value }),
     'label-autocal': el => Store.updateLabel(el.dataset.id, { autoCal: el.checked }),
     'label-name': el => { const v = el.value.trim(); if (v) Store.updateLabel(el.dataset.id, { name: v }); else App.render(); },

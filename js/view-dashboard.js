@@ -12,9 +12,40 @@ const DashboardView = (() => {
     </div>`;
   }
 
+  function evMini(e) {
+    const u = UI.safeUrl(e.webLink);
+    return `<div class="mini ev ${e.cancelled ? 'st-cancelled' : ''}" style="--c:var(--ol)">
+      <span class="ev-ic sm">${icon('calendar')}</span>
+      <span class="mini-time">${Outlook.evTime(e) || 'giornata'}</span>
+      ${u ? `<a class="mini-title" href="${U.esc(u)}" target="_blank" rel="noopener" title="Apri in Outlook">${U.esc(e.subject)}</a>` : `<span class="mini-title">${U.esc(e.subject)}</span>`}
+      <span class="source-badge ol">Outlook</span></div>`;
+  }
+
+  function recapHTML() {
+    if (Auth.mode === 'local') {
+      return `<div class="mail-ph">
+        <div class="mail-col mc-red"><h5>${ibadge('message', 'sm')}Risposte da inviare</h5><p>Disponibile nella versione online, dopo l'accesso Microsoft.</p></div>
+        <div class="mail-col mc-amber"><h5>${ibadge('target', 'sm')}Cose da definire</h5><p>Richieste aperte, date da fissare, conferme in sospeso.</p></div>
+        <div class="mail-col mc-sky"><h5>${ibadge('calendar', 'sm')}Prossimi giorni</h5><p>Scadenze e appuntamenti emersi dalla posta.</p></div></div>`;
+    }
+    const inbox = Outlook.messages('inbox');
+    const col = (cls, ic, title, list, filter) => `<div class="mail-col ${cls}">
+      <h5>${ibadge(ic, 'sm')}${title}<span class="rc-n">${list.length}</span></h5>
+      ${list.length ? list.slice(0, 3).map(m => `<a class="rc-item" href="#/posta/${encodeURIComponent(m.id)}"><b>${U.esc(m.from.name || m.from.address)}</b><span>${U.esc(m.subject)}</span></a>`).join('')
+        : `<p>${inbox.length ? 'Nessuna.' : (Outlook.busy ? 'Caricamento…' : 'Nessun dato: apri la Posta e premi «Aggiorna».')}</p>`}
+      ${list.length > 3 ? `<a class="rc-more" href="#/posta" data-act="recap-filter" data-v="${filter}">e altre ${list.length - 3} →</a>` : ''}</div>`;
+    return `<div class="mail-ph">
+        ${col('mc-red', 'mail', 'Non lette', inbox.filter(m => !m.isRead), 'unread')}
+        ${col('mc-amber', 'flag', 'Contrassegnate', inbox.filter(m => m.flagged), 'flagged')}
+        ${col('mc-sky', 'alert', 'Importanza alta', inbox.filter(m => m.importance === 'high'), 'important')}
+      </div>
+      <p class="form-hint" style="margin:12px 0 0">Calcolato sulle ultime ${inbox.length} email della Posta in arrivo. Il recap con priorità e risposte da inviare arriva con la v0.4.</p>`;
+  }
+
   function render(root) {
     const T = U.todayISO();
     const today = Store.tasksOn(T);
+    const todayEv = Prefs.get('outlookAgenda') ? Outlook.eventsOn(T) : [];
     const all = Store.allTasks();
     const open = s => ['todo', 'doing', 'waiting'].includes(s);
     const activeToday = today.filter(t => t.status !== 'cancelled').length;
@@ -58,18 +89,15 @@ const DashboardView = (() => {
 
       <div class="dash-grid">
         <section class="card toned tone-sky span-12">
-          <h3 class="card-title">${ibadge('mail')}<span>Recap posta<span class="sub">Dalla casella Outlook aziendale · in arrivo con il collegamento Microsoft</span></span></h3>
-          <div class="mail-ph">
-            <div class="mail-col mc-red"><h5>${ibadge('message', 'sm')}Risposte da inviare</h5><p>Email ricevute che attendono una tua risposta, ordinate per priorità.</p></div>
-            <div class="mail-col mc-amber"><h5>${ibadge('target', 'sm')}Cose da definire</h5><p>Richieste aperte, date da fissare, conferme in sospeso.</p></div>
-            <div class="mail-col mc-sky"><h5>${ibadge('calendar', 'sm')}Prossimi giorni</h5><p>Scadenze e appuntamenti emersi dalla posta, proposti come task da confermare.</p></div>
-          </div>
+          <h3 class="card-title">${ibadge('mail')}<span>Recap posta<span class="sub">Dalla casella Outlook aziendale</span></span>
+            ${Auth.mode !== 'local' ? `<a class="card-link" href="#/posta">Apri la posta${icon('arrowR', 'ic-xs')}</a>` : ''}</h3>
+          ${recapHTML()}
         </section>
 
         <section class="card toned tone-amber span-12">
-          <h3 class="card-title">${ibadge('sun')}<span>Oggi<span class="sub">${activeToday ? `${doneToday} di ${activeToday} completati` : 'Nessun task in programma'}</span></span>
+          <h3 class="card-title">${ibadge('sun')}<span>Oggi<span class="sub">${activeToday ? `${doneToday} di ${activeToday} task completati` : 'Nessun task in programma'}${todayEv.length ? ` · ${todayEv.length} ${todayEv.length === 1 ? 'evento' : 'eventi'} Outlook` : ''}</span></span>
             <a class="card-link" href="#/agenda/${T}">Apri agenda${icon('arrowR', 'ic-xs')}</a></h3>
-          ${today.length ? `<div class="mini-grid">${today.map(t => mini(t)).join('')}</div>` : '<div class="empty">Nessun task per oggi.</div>'}
+          ${todayEv.length || today.length ? `<div class="mini-grid">${todayEv.map(evMini).join('')}${today.map(t => mini(t)).join('')}</div>` : '<div class="empty">Nessun impegno per oggi.</div>'}
         </section>
 
         <section class="card toned tone-teal span-6">
