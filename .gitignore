@@ -1,0 +1,4 @@
+# Note interne e backup: restano sul PC, non vengono pubblicati
+PROGETTO.md
+dashboard-hs-backup-*.json
+*.bak
