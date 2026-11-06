@@ -59,7 +59,19 @@ const SettingsView = (() => {
           <label class="chk"><input type="checkbox" data-change="pref" data-key="outlookCal" ${Prefs.get('outlookCal') ? 'checked' : ''}>Mostra le riunioni Outlook nel calendario</label>
           <div class="data-actions"><button class="btn" data-act="outlook-refresh">${icon('refresh')}Aggiorna posta e calendario</button></div>
         </div>
-        <p class="form-hint" style="margin:12px 0 0">Le email e gli eventi restano salvati su questo dispositivo per la consultazione offline. L'app non modifica nulla in Outlook.</p>
+        <p class="form-hint" style="margin:12px 0 0">Le email e gli eventi restano salvati su questo dispositivo per la consultazione offline. L'app non invia email: le risposte vengono salvate come bozze in Outlook.</p>
+      </section>
+      <section class="card toned tone-violet span-6">
+        <h3 class="card-title">${ibadge('sparkle')}<span>Recap intelligente<span class="sub">Preparato da un'attività pianificata di Claude</span></span></h3>
+        <p style="margin:0 0 10px;font-size:14px">${Recap.data && Recap.data.generatedAt ? `Ultimo recap: <strong>${U.esc(new Date(Recap.data.generatedAt).toLocaleString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))}</strong>` : 'Nessun recap ancora disponibile.'}</p>
+        <p class="form-hint" style="margin:0 0 12px">Orari: giorni feriali alle 7:40 e alle 13:40. Il file viene salvato nella cartella OneDrive dell'app e letto automaticamente.</p>
+        ${Recap.error ? `<div class="banner">${U.esc(Recap.error)}</div>` : ''}
+        <button class="btn btn-sm" data-act="recap-refresh">${icon('refresh')}Rileggi il recap</button>
+      </section>
+      <section class="card toned tone-indigo span-6">
+        <h3 class="card-title">${ibadge('edit')}<span>Firma delle risposte</span></h3>
+        <textarea class="input" rows="3" data-change="signature" aria-label="Firma">${U.esc(Prefs.get('signature') || 'Matteo Filippetti\nHub&Start srl')}</textarea>
+        <p class="form-hint" style="margin:8px 0 0">Aggiunta in fondo alle bozze di risposta (si può togliere ogni volta).</p>
       </section>`;
 
     root.innerHTML = `<div class="view settings">
@@ -111,6 +123,7 @@ const SettingsView = (() => {
 
   Object.assign(Changes, {
     pref: el => { Prefs.set(el.dataset.key, el.checked); App.render(); },
+    signature: el => { Prefs.set('signature', el.value.trim()); UI.toast('Firma salvata'); },
     'label-color': el => Store.updateLabel(el.dataset.id, { color: el.value }),
     'label-autocal': el => Store.updateLabel(el.dataset.id, { autoCal: el.checked }),
     'label-name': el => { const v = el.value.trim(); if (v) Store.updateLabel(el.dataset.id, { name: v }); else App.render(); },

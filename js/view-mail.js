@@ -65,6 +65,9 @@ const MailView = (() => {
     if (!m) return `<div class="mr-empty">${ibadge('mail')}<p>Seleziona un'email per leggerla.</p><p class="small muted">Da ogni email puoi creare un task collegato con «Crea task».</p></div>`;
     const d = dt(m);
     const linked = Store.allTasks().filter(t => t.mailRef && t.mailRef.id === m.id);
+    const rc = Recap.forMessage(m.id);
+    const dr = Outlook.draftFor(m.id);
+    const CAT = { reply: 'Risposta da inviare', define: 'Da definire', upcoming: 'Prossimi giorni', info: 'Informativa' };
     return `<div class="mr-head">
         <button type="button" class="btn btn-sm mr-back" data-act="mail-back">${icon('chevL')}Posta</button>
         <h2 class="mr-subj">${U.esc(m.subject)}</h2>
@@ -73,8 +76,11 @@ const MailView = (() => {
             <div class="mr-to">A: ${U.esc(m.to.map(who).join(', ') || '—')}${m.cc.length ? ` · Cc: ${U.esc(m.cc.map(who).join(', '))}` : ''}</div>
             <div class="mr-to">${longDate(d)}</div></div></div>
         <div class="mr-badges">${m.flagged ? `<span class="status-pill st-cancelled">${icon('flag', 'ic-xs')}Contrassegnata</span>` : ''}${m.importance === 'high' ? '<span class="status-pill st-doing">Importanza alta</span>' : ''}${!m.isRead && folder === 'inbox' ? '<span class="status-pill st-waiting">Non letta in Outlook</span>' : ''}</div>
+        ${rc ? `<div class="mr-recap prio-${rc.priority}">${icon('sparkle')}<div><b>Recap: ${CAT[rc.category]} · priorità ${rc.priority}${rc.due ? ` · entro ${U.fmtShort(rc.due)}` : ''}</b><span>${U.esc(rc.reason)}</span></div></div>` : ''}
+        ${dr ? `<div class="mr-draft">${icon('check')}<span>Bozza di risposta creata alle ${U.pad(new Date(dr.ts).getHours())}:${U.pad(new Date(dr.ts).getMinutes())}</span>${UI.safeUrl(dr.webLink) ? `<a href="${U.esc(UI.safeUrl(dr.webLink))}" target="_blank" rel="noopener">Apri la bozza in Outlook</a>` : ''}</div>` : ''}
         <div class="mr-actions">
-          <button type="button" class="btn btn-primary btn-sm" data-act="mail-to-task" data-mail="${U.esc(m.id)}">${icon('calPlus')}Crea task</button>
+          ${folder !== 'sent' ? `<button type="button" class="btn btn-primary btn-sm" data-act="reply-draft" data-mail="${U.esc(m.id)}">${icon('message')}Rispondi (bozza)</button>` : ''}
+          <button type="button" class="btn btn-sm" data-act="mail-to-task" data-mail="${U.esc(m.id)}">${icon('calPlus')}Crea task</button>
           ${UI.safeUrl(m.webLink) ? `<a class="btn btn-sm" href="${U.esc(UI.safeUrl(m.webLink))}" target="_blank" rel="noopener">${icon('external')}Apri in Outlook</a>` : ''}
           <button type="button" class="btn btn-sm btn-ghost" data-act="mail-images" data-mail="${U.esc(m.id)}">${icon('image')}${showImages.has(m.id) ? 'Nascondi immagini' : 'Mostra immagini'}</button>
         </div>
@@ -153,7 +159,10 @@ const MailView = (() => {
     const qi = root.querySelector('[data-role="mail-q"]');
     qi.addEventListener('input', () => { q = qi.value.trim(); root.querySelector('[data-role="mail-list"]').innerHTML = listHTML(); });
     if (m) mountBody(m);
-    if (sel && !m) root.querySelector('.mail-read').innerHTML = '<div class="mr-empty"><p>Email non trovata tra quelle salvate.</p></div>';
+    if (sel && !m) {
+      root.querySelector('.mail-read').innerHTML = `<div class="mr-empty"><p>${navigator.onLine ? 'Caricamento dell\'email…' : 'Email non disponibile offline.'}</p></div>`;
+      Outlook.fetchMessage(sel);
+    }
   }
 
   Object.assign(Actions, {
@@ -164,6 +173,11 @@ const MailView = (() => {
     'recap-filter': (id, el) => { filter = el.dataset.v; folder = 'inbox'; q = ''; if (location.hash === '#/posta') App.render(); else location.hash = '#/posta'; },
     'outlook-refresh': () => Outlook.refreshAll({ force: true }),
     'mail-images': (id, el) => { const mid = el.dataset.mail; if (showImages.has(mid)) showImages.delete(mid); else showImages.add(mid); App.render(); },
+    'reply-draft': (id, el) => {
+      const mid = el.dataset.mail;
+      const rc = Recap.forMessage(mid) || (el.dataset.item ? Recap.findItem(el.dataset.item) : null);
+      UI.openReplyComposer({ messageId: mid, subject: rc ? rc.subject : '', toName: rc ? rc.from : '', toAddress: rc ? rc.fromAddress : '', suggested: rc ? rc.suggestedReply : '' });
+    },
     'open-mail': (id, el) => { location.hash = `#/posta/${encodeURIComponent(el.dataset.mail)}`; },
     'mail-to-task': (id, el) => {
       const m = Outlook.message(el.dataset.mail); if (!m) return;

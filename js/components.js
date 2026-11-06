@@ -94,6 +94,7 @@ const UI = (() => {
       document.removeEventListener('keydown', onKey);
       if (!stack.length) document.body.style.overflow = '';
       onClose && onClose();
+      if (!stack.length) document.dispatchEvent(new Event('hs-modal-closed'));
     }
     function onKey(e) { if (e.key === 'Escape' && stack[stack.length - 1] === api) close(); }
     bd.addEventListener('mousedown', e => { if (e.target === bd) close(); });
@@ -427,7 +428,7 @@ const UI = (() => {
         title, date: form.elements.date.value || d.date, start, end, labels: labelIds, people: peopleIds,
         notes: form.elements.notes.value.trim(), status: d.status, inCalendar: calBox.checked, links: d.links.filter(id => Store.task(id)),
       };
-      if (isNew) { Store.addTask({ ...data, source: d.source, ...(defaults.extra || {}) }); toast(data.inCalendar ? 'Task creato e visibile in calendario' : 'Task creato'); }
+      if (isNew) { const created = Store.addTask({ ...data, source: d.source, ...(defaults.extra || {}) }); if (defaults.onSaved) defaults.onSaved(created); toast(data.inCalendar ? 'Task creato e visibile in calendario' : 'Task creato'); }
       else { Store.updateTask(task.id, data); toast('Modifiche salvate'); }
       m.close();
     }
@@ -442,7 +443,60 @@ const UI = (() => {
     });
   }
 
+  /* ---------- Bozza di risposta (salvata in Outlook, mai inviata dall'app) ---------- */
+  function openReplyComposer({ messageId, subject = '', toName = '', toAddress = '', suggested = '' }) {
+    const m = Outlook.message(messageId);
+    const subj = (m && m.subject) || subject;
+    const name = (m && (m.from.name || m.from.address)) || toName;
+    const addr = (m && m.from.address) || toAddress;
+    const ccCount = m ? (m.to.length + m.cc.length - 1) : 0;
+    let all = false;
+    const sig = Prefs.get('signature') || 'Matteo Filippetti\nHub&Start srl';
+    const form = U.h(`<form class="form" novalidate>
+      <div class="reply-info">${icon('mail')}<div><b>Re: ${U.esc(subj)}</b><span>A: ${U.esc(name)}${addr ? ` &lt;${U.esc(addr)}&gt;` : ''}</span></div></div>
+      <div class="field"><span class="flabel">Destinatari</span><div class="seg" data-role="mode">
+        <button type="button" class="seg-btn on" data-v="one">${icon('arrowR', 'ic-xs')}Rispondi</button>
+        <button type="button" class="seg-btn" data-v="all">${icon('users', 'ic-xs')}Rispondi a tutti${ccCount > 0 ? ` (+${ccCount})` : ''}</button></div></div>
+      <div class="field"><label for="r-text">Testo della risposta</label>
+        <textarea id="r-text" class="input" name="text" rows="10" autofocus placeholder="Scrivi la risposta…">${U.esc(suggested)}</textarea>
+        ${suggested ? '<span class="form-hint">Testo suggerito dal recap: rileggilo e completa le parti tra [parentesi quadre].</span>' : ''}</div>
+      <label class="chk" style="margin-bottom:8px"><input type="checkbox" name="useSig" checked>Aggiungi la firma</label>
+      <textarea class="input" name="signature" rows="3" aria-label="Firma">${U.esc(sig)}</textarea>
+      <p class="note-box">La bozza viene salvata nella cartella <strong>Bozze</strong> di Outlook, con il messaggio originale citato sotto. Rileggila e inviala da Outlook: l'app non invia email.</p>
+    </form>`);
+    form.querySelector('[data-role="mode"]').addEventListener('click', e => {
+      const b = e.target.closest('[data-v]'); if (!b) return;
+      all = b.dataset.v === 'all';
+      form.querySelectorAll('[data-role="mode"] .seg-btn').forEach(x => x.classList.toggle('on', x === b));
+    });
+    let saving = false;
+    async function save() {
+      if (saving) return;
+      const text = form.elements.text.value.trim();
+      if (!text) { form.elements.text.classList.add('invalid'); form.elements.text.focus(); return; }
+      const signature = form.elements.signature.value.trim();
+      Prefs.set('signature', signature);
+      const full = form.elements.useSig.checked && signature ? `${text}\n\n${signature}` : text;
+      saving = true; saveBtn.disabled = true; saveBtn.querySelector('span').textContent = 'Salvataggio…';
+      try {
+        const d = await Outlook.createReplyDraft(messageId, full, all);
+        m2.close();
+        const u = safeUrl(d.webLink);
+        toast('Bozza salvata in Outlook', u ? { label: 'Apri', run: () => window.open(u, '_blank', 'noopener') } : null);
+      } catch (e) {
+        saving = false; saveBtn.disabled = false; saveBtn.querySelector('span').textContent = 'Salva bozza in Outlook';
+        let err = form.querySelector('.login-err');
+        if (!err) { err = U.h('<div class="login-err"></div>'); form.prepend(err); }
+        err.textContent = e.message || 'Non è stato possibile creare la bozza.';
+      }
+    }
+    const saveBtn = btn('Salva bozza in Outlook', 'btn-primary', save, 'mail');
+    if (!navigator.onLine) saveBtn.disabled = true;
+    const m2 = openModal({ title: 'Bozza di risposta', body: form, footer: [btn('Annulla', '', () => m2.close()), saveBtn] });
+  }
+
   return {
+    openReplyComposer,
     openModal, isModalOpen, closeAll, confirm, toast, btn, expanded,
     labelChip, personChip, statusPill, taskColor, sourceBadge, taskLine, eventLine, safeUrl, timeline, statsBlock,
     showLabelTasks, showRelated, openTaskEditor,

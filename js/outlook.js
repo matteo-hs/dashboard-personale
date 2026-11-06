@@ -38,11 +38,13 @@ const Prefs = (() => {
 })();
 
 const Outlook = (() => {
-  const LS_MAIL = 'hs-mail-cache', LS_CAL = 'hs-cal-cache', LS_BODIES = 'hs-mail-bodies';
+  const LS_MAIL = 'hs-mail-cache', LS_CAL = 'hs-cal-cache', LS_BODIES = 'hs-mail-bodies', LS_DRAFTS = 'hs-drafts';
   const MAX_LIST = 200, MAX_BODIES = 80, CAL_TTL = 10 * 60 * 1000;
   const MSG_SEL = 'id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,bodyPreview,isRead,importance,flag,hasAttachments,conversationId,webLink';
   const EV_SEL = 'id,subject,start,end,isAllDay,location,organizer,isCancelled,webLink,isOnlineMeeting,onlineMeeting,showAs,responseStatus,bodyPreview,attendees,isOrganizer';
-  let mail = { inbox: [], sent: [], next: { inbox: null, sent: null }, at: 0 };
+  let mail = { inbox: [], sent: [], extra: [], next: { inbox: null, sent: null }, at: 0 };
+  let drafts = {};
+  try { drafts = JSON.parse(localStorage.getItem(LS_DRAFTS) || '{}'); } catch (e) { /* ignora */ }
   let cal = { months: {} };
   let busy = { mail: false, cal: {} };
   let error = '';
@@ -114,7 +116,36 @@ const Outlook = (() => {
     finally { busy.mail = false; notify(); }
   }
   const messages = folder => mail[folder] || [];
-  const message = id => mail.inbox.find(m => m.id === id) || mail.sent.find(m => m.id === id) || null;
+  const message = id => mail.inbox.find(m => m.id === id) || mail.sent.find(m => m.id === id) || (mail.extra || []).find(m => m.id === id) || null;
+  const fetching = new Set();
+  /* Email citata dal recap ma non tra le ultime scaricate: la recupera singolarmente */
+  async function fetchMessage(id) {
+    if (!id || message(id) || fetching.has(id) || !enabled() || !navigator.onLine) return;
+    fetching.add(id);
+    try {
+      const j = await getJSON(`/me/messages/${encodeURIComponent(id)}?$select=${MSG_SEL}`);
+      mail.extra = [slimMsg(j), ...(mail.extra || []).filter(m => m.id !== id)].slice(0, 60);
+      saveMail();
+    } catch (e) { if (e.status !== 404) handleErr(e); }
+    finally { fetching.delete(id); notify(); }
+  }
+
+  /* Bozza di risposta in Outlook (cartella Bozze). L'app non invia mai email. */
+  async function createReplyDraft(id, text, all = false) {
+    if (!enabled()) throw new Error('Serve l\'accesso Microsoft');
+    if (!navigator.onLine) throw new Error('Sei offline: la bozza si può creare solo con la rete');
+    const r = await Graph.call(`/me/messages/${encodeURIComponent(id)}/${all ? 'createReplyAll' : 'createReply'}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: text }),
+    });
+    if (r.status === 403) throw new Error('Manca il permesso «Mail.ReadWrite» nel portale Microsoft: senza, l\'app non può creare bozze.');
+    if (!r.ok) throw await Graph.fail(r, 'Creazione bozza');
+    const j = await r.json();
+    drafts[id] = { id: j.id, webLink: j.webLink, ts: Date.now(), all };
+    try { localStorage.setItem(LS_DRAFTS, JSON.stringify(drafts)); } catch (e) { /* ignora */ }
+    notify();
+    return drafts[id];
+  }
+  const draftFor = id => drafts[id] || null;
 
   async function body(id) {
     const cached = await IDB.get('body:' + id);
@@ -203,7 +234,7 @@ const Outlook = (() => {
   }
 
   return {
-    init, refreshAll, refreshMail, ensureMonth, messages, message, body, eventsOn, findEvent, evTime, evEnd,
+    init, refreshAll, refreshMail, ensureMonth, messages, message, fetchMessage, createReplyDraft, draftFor, body, eventsOn, findEvent, evTime, evEnd,
     subscribe: f => listeners.add(f),
     get enabled() { return enabled(); }, get busy() { return busy.mail || Object.keys(busy.cal).length > 0; },
     get mailAt() { return mail.at; }, get error() { return error; }, hasMore: f => !!mail.next[f],

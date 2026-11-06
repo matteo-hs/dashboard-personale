@@ -109,6 +109,7 @@ const App = (() => {
       const f = e.target.closest('[data-form]');
       if (f && Forms[f.dataset.form]) { e.preventDefault(); Forms[f.dataset.form](f); }
     });
+    document.addEventListener('hs-modal-closed', () => { setTimeout(() => { if (pendingRender && !typingInMain()) render(); }, 30); });
     document.getElementById('main').addEventListener('focusout', () => { setTimeout(() => { if (pendingRender && !typingInMain()) render(); }, 50); });
 
     // Tastiera: frecce per sfogliare, N per nuovo task
@@ -144,6 +145,7 @@ const App = (() => {
 
   Object.assign(Actions, {
     'sync-now': () => Sync.syncNow(),
+    'recap-refresh': () => Recap.refresh(),
     relogin: () => Auth.login(),
     install: () => PWA.install(),
     logout: async () => {
@@ -165,13 +167,16 @@ const App = (() => {
     Auth.subscribe(render);
     Sync.subscribe(renderChrome);
     PWA.subscribe(() => { renderChrome(); if (current === 'impostazioni') render(); });
-    Outlook.subscribe(() => {
+    const softRender = () => {
       if (!['posta', 'dashboard', 'agenda', 'calendario', 'impostazioni'].includes(current) || Auth.needsLogin()) return;
       if (typingInMain() || UI.isModalOpen()) { pendingRender = true; return; }
       render();
-    });
+    };
+    Outlook.subscribe(softRender);
+    Recap.subscribe(softRender);
     Sync.init();
     Outlook.init();
+    Recap.init();
     PWA.init();
     render();
   }

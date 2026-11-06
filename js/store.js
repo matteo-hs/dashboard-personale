@@ -38,6 +38,7 @@ const Store = (() => {
     labels: BASE_LABELS.map(l => ({ ...l, updatedAt: 0 })),
     people: [],
     dayPrefs: {},
+    handled: {},
     deleted: {},
     createdAt: now(),
     updatedAt: now(),
@@ -47,6 +48,7 @@ const Store = (() => {
     s = Object.assign(defaultState(), JSON.parse(JSON.stringify(s || {})));
     if (!s.dayPrefs || typeof s.dayPrefs !== 'object') s.dayPrefs = {};
     if (!s.deleted || typeof s.deleted !== 'object') s.deleted = {};
+    if (!s.handled || typeof s.handled !== 'object') s.handled = {};
     for (const b of BASE_LABELS) if (!s.labels.find(l => l.id === b.id)) s.labels.unshift({ ...b, updatedAt: 0 });
     s.labels = s.labels.map(l => ({ updatedAt: 0, ...l }));
     s.people = (s.people || []).map(p => ({ role: '', email: '', updatedAt: 0, ...p }));
@@ -215,6 +217,11 @@ const Store = (() => {
     commit();
   }
 
+  /* Elementi del recap / task proposti già gestiti (sincronizzati tra dispositivi) */
+  const handledInfo = id => { const h = state.handled[id]; return h && h.a ? h : null; };
+  const isHandled = id => !!handledInfo(id);
+  function markHandled(id, a) { state.handled[id] = { a: a || null, ts: now() }; commit(); }
+
   /* ---------- Sincronizzazione: unione di due stati ---------- */
   function signature(s) {
     const out = [];
@@ -223,6 +230,7 @@ const Store = (() => {
     s.people.forEach(p => out.push(`p${p.id}:${p.updatedAt || 0}`));
     Object.entries(s.dayPrefs).forEach(([k, v]) => out.push(`d${k}:${v.ts || 0}`));
     Object.keys(s.deleted).forEach(k => out.push(`x${k}`));
+    Object.entries(s.handled || {}).forEach(([k, v]) => out.push(`h${k}:${v.ts || 0}`));
     return out.sort().join('|');
   }
   function mergeStates(a, b) {
@@ -245,6 +253,10 @@ const Store = (() => {
       deleted,
     };
     for (const [k, v] of Object.entries(a.dayPrefs)) if (!m.dayPrefs[k] || (v.ts || 0) > (m.dayPrefs[k].ts || 0)) m.dayPrefs[k] = v;
+    m.handled = { ...(b.handled || {}) };
+    for (const [k, v] of Object.entries(a.handled || {})) if (!m.handled[k] || (v.ts || 0) > (m.handled[k].ts || 0)) m.handled[k] = v;
+    const hLimit = now() - 90 * 86400000;
+    for (const [k, v] of Object.entries(m.handled)) if ((v.ts || 0) < hLimit) delete m.handled[k];
     for (const b0 of BASE_LABELS) if (!m.labels.find(l => l.id === b0.id)) m.labels.unshift({ ...b0, updatedAt: 0 });
     // coerenza dei riferimenti
     const ids = new Set(m.tasks.map(t => t.id));
@@ -349,6 +361,7 @@ const Store = (() => {
     person, people, ensurePerson, addPerson, updatePerson, deletePerson, tasksWithPerson,
     task, allTasks, tasksOn, calendarTasksOn, tasksBetween, addTask, updateTask, deleteTask, restoreTask,
     setStatus, toggleDone, toggleCalendar, addComment, deleteComment, related, relatedCount, dayPref, setDayPref,
+    handledInfo, isHandled, markHandled,
     mergeIn, snapshot, mergeStates, normalize, signature,
     exportJSON, importJSON, hasDemo, removeDemo, resetAll,
   };

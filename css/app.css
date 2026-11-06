@@ -942,3 +942,52 @@ button.source-badge:hover, a.source-badge:hover { filter: brightness(.95); text-
 .rc-item span { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rc-item:hover b { color: var(--primary); }
 .rc-more { display: inline-block; margin-top: 6px; font-size: 12.5px; font-weight: 700; text-decoration: none; }
+
+/* ============ RECAP INTELLIGENTE E BOZZE (v0.4) ============ */
+.rc-gen { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--cal); background: var(--cal-soft); border-radius: 8px; padding: 4px 10px; margin-bottom: 10px; }
+.rc-gen.stale { color: var(--warning); background: var(--warning-soft); }
+.rc-summary { margin: 0 0 16px; font-size: 14.5px; line-height: 1.55; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--cal); border-radius: 12px; padding: 12px 14px; }
+.rc-col { display: flex; flex-direction: column; gap: 8px; }
+.rc-col h5 { margin-bottom: 4px; }
+.rc-card { --pr: #64748B; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--pr); border-radius: 11px; padding: 9px 10px 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rc-card.prio-alta { --pr: #E11D48; }
+.rc-card.prio-media { --pr: #D97706; }
+.rc-card.prio-bassa { --pr: #64748B; }
+.rc-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.prio-tag { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--pr); background: color-mix(in srgb, var(--pr) 12%, var(--surface)); border-radius: 5px; padding: 1px 6px; flex: none; }
+.rc-from { font-size: 12.5px; font-weight: 700; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.rc-due { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--danger); flex: none; }
+.rc-subj { font-size: 13.5px; font-weight: 650; line-height: 1.35; word-break: break-word; }
+.rc-reason { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.rc-draft { font-size: 12px; font-weight: 700; color: var(--success); display: flex; align-items: center; gap: 4px; }
+.rc-acts { display: flex; gap: 2px; margin: 2px -4px 0; }
+.rc-acts .act { height: 28px; font-size: 12px; padding: 0 7px; text-decoration: none; }
+.rc-acts .act .ic { width: 15px; height: 15px; }
+.rc-stats { margin: 12px 0 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rc-stats a { font-weight: 600; text-decoration: none; }
+.prop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.prop-card { border: 1px solid color-mix(in srgb, #8B5CF6 22%, var(--border)); border-radius: 14px; padding: 13px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.prop-title { font-weight: 700; font-size: 14.5px; line-height: 1.35; }
+.prop-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+.prop-src { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+.prop-src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-notes { font-size: 12.5px; color: var(--text-2); white-space: pre-wrap; }
+.prop-acts { display: flex; gap: 6px; margin-top: auto; }
+.reply-info { display: flex; gap: 10px; align-items: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; }
+.reply-info .ic { color: var(--info); margin-top: 2px; }
+.reply-info b { display: block; font-size: 14px; }
+.reply-info span { font-size: 13px; color: var(--muted); }
+.mr-recap { --pr: #64748B; display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--pr) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--pr) 25%, var(--border)); }
+.mr-recap.prio-alta { --pr: #E11D48; } .mr-recap.prio-media { --pr: #D97706; }
+.mr-recap .ic { color: var(--cal); margin-top: 2px; }
+.mr-recap b { display: block; font-size: 13.5px; }
+.mr-recap span { font-size: 13px; color: var(--text-2); }
+.mr-draft { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--success); }
+.mr-draft .ic { width: 16px; height: 16px; }
+.mr-draft a { font-weight: 700; }
+
+.rc-info { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.rc-info-h { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.rc-info-it { line-height: 1.45; }
+.rc-info-it a { font-weight: 650; text-decoration: none; }
+.rc-info-it .link-btn { margin-left: 8px; }
