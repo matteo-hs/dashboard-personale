@@ -208,9 +208,17 @@ button { font: inherit; color: inherit; }
 
 /* ---------- Card ---------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 22px; }
+/* Pannelli colorati: ogni pannello ha la propria tinta su TUTTA la superficie (mai due pannelli con lo stesso sfondo).
+   Gerarchia: .lvl1 = pannello principale in cima alla pagina (tinta più intensa); .toned = sezioni (tinta leggera);
+   i contenuti interni (righe, schede, campi) restano sul colore di superficie e quindi risaltano come sotto-sezioni. */
 .card.toned {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 7%, var(--surface)) 0, var(--surface) 150px);
-  border-color: color-mix(in srgb, var(--tone) 16%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 10%, var(--surface)) 0, color-mix(in srgb, var(--tone) 4%, var(--surface)) 100%);
+  border-color: color-mix(in srgb, var(--tone) 22%, var(--border));
+}
+.card.toned.lvl1 {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 17%, var(--surface)) 0, color-mix(in srgb, var(--tone) 8%, var(--surface)) 100%);
+  border-color: color-mix(in srgb, var(--tone) 34%, var(--border));
+  box-shadow: 0 10px 26px -16px color-mix(in srgb, var(--tone) 55%, transparent);
 }
 .card-title { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 16.5px; margin: 0 0 18px; line-height: 1.25; }
 .card-title .count { margin-left: auto; font-size: 12.5px; color: var(--muted); font-weight: 600; text-align: right; }
@@ -493,12 +501,13 @@ select.input-sm { padding: 0 8px; width: auto; }
 
 .day-hero {
   padding: 18px 20px;
-  background:
-    radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--page) 15%, transparent), transparent 55%),
-    radial-gradient(120% 160% at 100% 100%, color-mix(in srgb, var(--page2) 13%, transparent), transparent 55%),
-    var(--surface);
-  border-color: color-mix(in srgb, var(--page) 18%, var(--border));
+  background: linear-gradient(120deg, color-mix(in srgb, var(--page) 17%, var(--surface)), color-mix(in srgb, var(--page2) 15%, var(--surface)));
+  border-color: color-mix(in srgb, var(--page) 34%, var(--border));
+  box-shadow: 0 10px 26px -16px color-mix(in srgb, var(--page) 55%, transparent);
 }
+.day-hero .pager { background: var(--surface); }
+.day-hero .dh-stat { background: var(--surface); }
+.day-hero .bar { background: var(--surface); }
 .dh-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; }
 .dh-date { display: flex; align-items: center; justify-content: center; gap: 16px; min-width: 0; }
 .dh-num {

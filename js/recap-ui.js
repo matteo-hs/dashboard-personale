@@ -73,7 +73,7 @@ const RecapUI = (() => {
     if (Auth.mode === 'local') return '';
     const list = Recap.proposals();
     if (!list.length) return '';
-    return `<section class="card toned tone-violet span-12 prop-section">
+    return `<section class="card toned tone-orange span-12 prop-section">
       <h3 class="card-title">${ibadge('sparkle')}<span>Task proposti dalla posta<span class="sub">Accettali per aggiungerli all'agenda (potrai modificarli prima di salvare), oppure scartali</span></span><span class="count">${list.length}</span></h3>
       <div class="prop-grid">${list.map(p => `<div class="prop-card">
         <div class="prop-title">${U.esc(p.title)}</div>

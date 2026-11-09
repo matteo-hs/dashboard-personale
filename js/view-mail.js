@@ -190,7 +190,7 @@ const MailView = (() => {
       ${Recap.error ? `<div class="banner">${U.esc(Recap.error)}</div>` : ''}
       ${offline ? '<div class="banner">Sei offline: vedi il recap e le email salvate sul dispositivo.</div>' : ''}
       <div class="dash-grid">
-        <section class="card toned tone-violet span-12 recap-main">
+        <section class="card toned lvl1 tone-violet span-12 recap-main">
           <h3 class="card-title">${ibadge('sparkle')}<span>Recap della posta<span class="sub">Preparato da Claude · giorni feriali alle 7:40 e 13:40</span></span></h3>
           ${R ? `${RecapUI.header()}${RecapUI.tagBar(tag)}${tag ? `<div class="tag-active">Filtro attivo: <b>${U.esc(tag)}</b></div>` : ''}${RecapUI.columns({ limit: 50, tag })}${RecapUI.info(tag)}`
             : `<div class="note-box" style="margin-top:0">${Recap.busy ? 'Caricamento del recap…' : 'Il recap non è ancora disponibile: compare qui dopo la prossima esecuzione dell\'attività pianificata.'}</div>`}
@@ -200,11 +200,11 @@ const MailView = (() => {
           <h3 class="card-title">${ibadge('flag')}<span>Le più importanti<span class="sub">Scuole ed enti · in attesa di una tua risposta</span></span><span class="count">${imp.length}</span></h3>
           ${imp.length ? `<div class="erows">${imp.slice(0, 10).map(e => erow(e)).join('')}</div>` : `<div class="empty">${R ? 'Nessuna email importante in sospeso.' : 'Disponibile con il recap.'}</div>`}
         </section>
-        <section class="card toned tone-sky span-5">
+        <section class="card toned tone-teal span-5">
           <h3 class="card-title">${ibadge('inbox')}<span>Ultime ricevute<span class="sub">${unread} non lette nella Posta in arrivo</span></span></h3>
           ${recent.length ? `<div class="erows">${recent.map(e => erow(e, { live: true })).join('')}</div>` : `<div class="empty">${Outlook.busy ? 'Caricamento…' : 'Nessuna email salvata. Premi «Aggiorna».'}</div>`}
         </section>
-        <section class="card span-12 all-mail ${showAll ? 'open' : ''}">
+        <section class="card toned tone-slate span-12 all-mail ${showAll ? 'open' : ''}">
           <button type="button" class="all-toggle" data-act="mail-all">${icon(showAll ? 'chevUp' : 'chevDown')}<span>${showAll ? 'Nascondi l\'elenco completo' : 'Mostra tutte le email salvate'}</span><span class="muted small">(${Outlook.messages('inbox').length} in arrivo · ${Outlook.messages('sent').length} inviate)</span></button>
           ${showAll ? `<div class="all-body">
             <div class="seg mail-tabs">

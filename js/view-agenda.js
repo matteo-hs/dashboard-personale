@@ -104,7 +104,7 @@ const AgendaView = (() => {
       <div class="slots"><div class="slot"><div class="slot-time"><b>${fmt(L.aEnd)}</b><span>in poi</span>${eve.length ? plusBtn(19 * 60, 20 * 60) : ''}</div>
         <div class="slot-body">${eveCont.map(contHTML).join('')}${eve.map(line).join('')}${eve.length ? '' : addBtn(19 * 60, 20 * 60, 'Serata libera · aggiungi')}</div></div></div></div>`;
 
-    return `<section class="card sheet ag-sheet tone-teal">
+    return `<section class="card toned sheet ag-sheet tone-teal">
       <div class="sheet-head">${ibadge('clock')}<div><div class="ttl">Agenda della giornata</div>
         <div class="sub">Clicca una riga libera per aggiungere un impegno · la freccia «30′» sposta di mezz'ora le fasce di questa giornata</div></div></div>
       ${morning}${lunch}${afternoon}${evening}
@@ -115,7 +115,7 @@ const AgendaView = (() => {
   function todoHTML(tasks, events) {
     const list = tasks.filter(t => !t.start);
     const allDay = events.filter(e => e.allDay);
-    return `<section class="card toned tone-teal ag-todo">
+    return `<section class="card toned tone-indigo ag-todo">
       <h3 class="card-title">${ibadge('list')}<span>In giornata<span class="sub">Attività senza orario</span></span>
         <button class="btn btn-sm btn-ghost band-add" data-act="new-task" data-date="${date}" data-start="">${icon('plus')}Aggiungi</button></h3>
       ${allDay.length ? `<div class="todo-list" style="margin-bottom:8px">${allDay.map(UI.eventLine).join('')}</div>` : ''}
@@ -156,7 +156,7 @@ const AgendaView = (() => {
         ${list.slice(0, 3).map(t => `<div class="nd-item" style="--c:${UI.taskColor(t)}"><i></i><span>${t.start ? t.start + ' ' : ''}${U.esc(t.title)}</span></div>`).join('')}
       </a>`;
     }
-    return `<section class="card toned tone-sky ag-next">
+    return `<section class="card toned tone-blue ag-next">
       <h3 class="card-title">${ibadge('calendar')}<span>Prossimi giorni<span class="sub">Clicca un giorno per aprirne la pagina</span></span></h3>
       <div class="next-grid">${cards}</div></section>`;
   }

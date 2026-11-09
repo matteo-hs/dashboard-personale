@@ -84,7 +84,7 @@ const CalendarView = (() => {
         <div><h1 class="page-title">Calendario</h1>
           <p class="page-sub">Clicca una giornata per vederne le attività e aggiungerne di nuove</p></div>
       </header>
-      <div class="card cal-card">
+      <div class="card toned lvl1 tone-blue cal-card">
         <div class="cal-head">
           <div class="cal-title"><span class="cal-month">${U.MONTHS[m - 1]}</span><span class="cal-year">${y}</span></div>
           <div class="cal-nav">
@@ -102,7 +102,7 @@ const CalendarView = (() => {
         </div>
       </div>
 
-      <section class="card day-panel" id="day-panel">
+      <section class="card toned tone-violet day-panel" id="day-panel">
         <div class="dp-head">
           <div><div class="dp-title">${U.cap(U.fmtLong(sel))}${rel ? ` · <span class="muted">${rel}</span>` : ''}</div>
             <div class="dp-sub">${list.length ? `${list.length} attività in calendario` : 'Nessuna attività in calendario'}${evs.length ? ` · ${evs.length} ${evs.length === 1 ? 'evento' : 'eventi'} Outlook` : ''}</div></div>

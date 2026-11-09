@@ -30,13 +30,13 @@ const SettingsView = (() => {
     const d = Sync.describe();
     const a = Auth.account || {};
     const acctCard = Auth.mode === 'local'
-      ? `<section class="card toned tone-green span-12">
+      ? `<section class="card toned lvl1 tone-green span-12">
           <h3 class="card-title">${ibadge('shield')}<span>Account e sincronizzazione<span class="sub">Versione locale aperta dal file sul PC</span></span></h3>
           <p class="note-box" style="margin-top:0">I dati di questa versione restano <strong>solo in questo browser</strong>. L'accesso Microsoft, la sincronizzazione su OneDrive e l'installazione come app sono nella versione online:
             <a href="${CONFIG.redirectUri}" target="_blank" rel="noopener">${CONFIG.redirectUri}</a>.<br>
             Per portarci i dati: «Esporta backup» qui sotto, poi «Importa backup» nella versione online.</p>
         </section>`
-      : `<section class="card toned tone-green span-12">
+      : `<section class="card toned lvl1 tone-green span-12">
           <h3 class="card-title">${ibadge('shield')}<span>Account e sincronizzazione<span class="sub">I dati sono nel tuo OneDrive, cartella «Apps/Dashboard Personale»</span></span></h3>
           <div class="acct-panel">
             <div class="acct-row"><span class="avatar lg" style="--pc:#3B5BDB">${U.esc(U.initials(a.name || a.username || '?'))}</span>
@@ -68,12 +68,12 @@ const SettingsView = (() => {
         ${Recap.error ? `<div class="banner">${U.esc(Recap.error)}</div>` : ''}
         <button class="btn btn-sm" data-act="recap-refresh">${icon('refresh')}Rileggi il recap</button>
       </section>
-      <section class="card toned tone-indigo span-6">
+      <section class="card toned tone-pink span-6">
         <h3 class="card-title">${ibadge('edit')}<span>Firma delle risposte<span class="sub">Usata dall'app e da Claude nelle bozze</span></span></h3>
         <textarea class="input" rows="3" data-change="signature" aria-label="Firma">${U.esc(Store.settings().signature || '')}</textarea>
         <p class="form-hint" style="margin:8px 0 0">Aggiunta in fondo alle bozze di risposta (si può togliere ogni volta).</p>
       </section>
-      <section class="card toned tone-teal span-12">
+      <section class="card toned tone-orange span-12">
         <h3 class="card-title">${ibadge('tag')}<span>Hashtag del recap<span class="sub">Claude usa questo elenco più i nomi dei tuoi progetti per classificare le email</span></span></h3>
         <div class="tags tags-edit">${Store.settings().hashtags.map((t, i) => `<span class="tag static" style="--c:${RecapUI.tagColor(t)}">${U.esc(t)}<button type="button" class="tag-x" data-act="tag-remove" data-i="${i}" aria-label="Rimuovi ${U.esc(t)}">${icon('x')}</button></span>`).join('')}</div>
         <form class="add-row" data-form="add-hashtag"><input class="input input-sm" name="tag" placeholder="Nuovo hashtag, es. #orientamento" autocomplete="off">
@@ -93,7 +93,7 @@ const SettingsView = (() => {
           <h3 class="card-title">${ibadge('tag')}<span>Etichette base</span></h3>${base}
           <p class="form-hint" style="margin:10px 0 0">Le etichette con «In calendario di default» inviano automaticamente il task al calendario (modificabile sul singolo task).</p>
         </section>
-        <section class="card toned tone-violet span-6">
+        <section class="card toned tone-blue span-6">
           <h3 class="card-title">${ibadge('folder')}<span>Progetti</span></h3>
           ${projects || '<div class="muted small">Nessun progetto.</div>'}
           <form class="add-row" data-form="add-project"><input class="input input-sm" name="name" placeholder="Nome nuovo progetto" autocomplete="off">
