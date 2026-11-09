@@ -86,7 +86,7 @@ const Store = (() => {
   function commit(source = 'local') {
     save();
     if (source === 'local') version++;
-    listeners.forEach(f => f(source));
+    listeners.forEach(f => { try { f(source); } catch (e) { console.error('[store listener]', e); } });
   }
   const subscribe = f => listeners.add(f);
   const tomb = id => { state.deleted[id] = now(); };
