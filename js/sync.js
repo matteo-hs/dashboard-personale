@@ -31,7 +31,11 @@ const Sync = (() => {
 
   try { meta = { ...meta, ...JSON.parse(localStorage.getItem(META_KEY) || '{}') }; } catch (e) { /* ignora */ }
   const saveMeta = () => { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) { /* ignora */ } };
-  function set(s, msg = '') { status = s; message = msg; listeners.forEach(f => f()); }
+  function set(s, msg = '') {
+    status = s; message = msg;
+    // un errore nella visualizzazione non deve far risultare fallita la sincronizzazione
+    listeners.forEach(f => { try { f(); } catch (e) { console.error('[sync listener]', e); } });
+  }
   const enabled = () => Auth.mode !== 'local' && !!Auth.account;
 
   async function download() {
@@ -94,6 +98,7 @@ const Sync = (() => {
         sessionSynced = true;
         set('ok');
       } catch (e) {
+        console.error('[sync]', e);
         if (e.auth) set('auth', 'Accesso scaduto');
         else if (e.network) set('offline');
         else set('error', e.message || 'Errore di sincronizzazione');

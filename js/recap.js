@@ -9,9 +9,9 @@ const Recap = (() => {
   const LABELS = ['didattica', 'personale', 'sede', 'appuntamento'];
   let data = null, etag = null, at = 0, busy = false, error = '';
   const listeners = new Set();
-  const notify = () => listeners.forEach(f => f());
-  try { const c = JSON.parse(localStorage.getItem(LS) || 'null'); if (c) { data = c.data; etag = c.etag; at = c.at || 0; } } catch (e) { /* ignora */ }
-  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ data, etag, at })); } catch (e) { /* ignora */ } };
+  const notify = () => listeners.forEach(f => { try { f(); } catch (e) { console.error('[recap listener]', e); } });
+  const CACHE_V = 2; // copia salvata dalle versioni precedenti: si ricontrolla e si riscarica il file
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify({ v: CACHE_V, data, etag, at })); } catch (e) { /* ignora */ } };
   const enabled = () => Auth.mode !== 'local' && !!Auth.account;
 
   const str = (v, max = 400) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -51,9 +51,14 @@ const Recap = (() => {
     return { schema: j.schema === 2 ? 2 : 1, generatedAt: str(j.generatedAt, 40), updatedAt: str(j.updatedAt, 40), summary: str(j.summary, 1500), items, emails, proposals, tasks };
   }
 
+  try {
+    const c = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (c && c.data) { data = clean(c.data); etag = c.v === CACHE_V ? c.etag : null; at = c.v === CACHE_V ? (c.at || 0) : 0; }
+  } catch (e) { data = null; etag = null; at = 0; }
+
   /* Task chiesti a Claude in chat: entrano in agenda da soli (una volta sola, anche con più dispositivi) */
   function importTasks() {
-    if (!data || !data.tasks.length) return 0;
+    if (!data || !Array.isArray(data.tasks) || !data.tasks.length) return 0;
     if (!Sync.sessionSynced) return 0; // prima si allinea con OneDrive, poi si importa
     let n = 0;
     for (const t of data.tasks) {
