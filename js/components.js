@@ -162,6 +162,7 @@ const UI = (() => {
     if (t.source === 'email') return t.mailRef
       ? `<button type="button" class="source-badge mail" data-act="open-mail" data-mail="${U.esc(t.mailRef.id)}" title="Apri l'email «${U.esc(t.mailRef.subject || '')}»">${icon('mail')}Da email</button>`
       : `<span class="source-badge mail">${icon('mail')}Da email</span>`;
+    if (t.source === 'chat') return `<span class="source-badge" title="Aggiunto da Claude su tua richiesta in chat">${icon('sparkle')}Da Claude</span>`;
     if (t.source === 'outlook') {
       const u = safeUrl(t.eventRef && t.eventRef.webLink);
       return u ? `<a class="source-badge ol" href="${U.esc(u)}" target="_blank" rel="noopener" title="Apri l'evento in Outlook">${icon('calendar')}Evento Outlook</a>`
@@ -451,7 +452,7 @@ const UI = (() => {
     const addr = (m && m.from.address) || toAddress;
     const ccCount = m ? (m.to.length + m.cc.length - 1) : 0;
     let all = false;
-    const sig = Prefs.get('signature') || 'Matteo Filippetti\nHub&Start srl';
+    const sig = Store.settings().signature || '';
     const form = U.h(`<form class="form" novalidate>
       <div class="reply-info">${icon('mail')}<div><b>Re: ${U.esc(subj)}</b><span>A: ${U.esc(name)}${addr ? ` &lt;${U.esc(addr)}&gt;` : ''}</span></div></div>
       <div class="field"><span class="flabel">Destinatari</span><div class="seg" data-role="mode">
@@ -475,7 +476,7 @@ const UI = (() => {
       const text = form.elements.text.value.trim();
       if (!text) { form.elements.text.classList.add('invalid'); form.elements.text.focus(); return; }
       const signature = form.elements.signature.value.trim();
-      Prefs.set('signature', signature);
+      if (signature !== (Store.settings().signature || '')) Store.setSettings({ signature });
       const full = form.elements.useSig.checked && signature ? `${text}\n\n${signature}` : text;
       saving = true; saveBtn.disabled = true; saveBtn.querySelector('span').textContent = 'Salvataggio…';
       try {

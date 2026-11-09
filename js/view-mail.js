@@ -1,7 +1,8 @@
 'use strict';
-/* Posta (sola lettura): elenco Posta in arrivo / Inviata, filtri, lettura protetta, task da email */
+/* Posta = centro del recap: recap di Claude, email più importanti, ultime ricevute; elenco completo apribile.
+   Lettura protetta delle email, bozze di risposta, task da email. */
 const MailView = (() => {
-  let folder = 'inbox', filter = 'all', q = '', sel = null;
+  let folder = 'inbox', filter = 'all', q = '', sel = null, tag = null, showAll = false;
   const showImages = new Set();
   const bodyMem = new Map();
   const FILTERS = [
@@ -69,8 +70,8 @@ const MailView = (() => {
     const dr = Outlook.draftFor(m.id);
     const CAT = { reply: 'Risposta da inviare', define: 'Da definire', upcoming: 'Prossimi giorni', info: 'Informativa' };
     return `<div class="mr-head">
-        <button type="button" class="btn btn-sm mr-back" data-act="mail-back">${icon('chevL')}Posta</button>
         <h2 class="mr-subj">${U.esc(m.subject)}</h2>
+        ${RecapUI.tagChips(Recap.tagsFor(m.id))}
         <div class="mr-meta"><span class="avatar lg" style="--pc:${pcolor(m.from.address)}">${U.esc(U.initials(who(m.from) || '?'))}</span>
           <div class="mr-who"><b>${U.esc(who(m.from))}</b> <span class="muted">&lt;${U.esc(m.from.address)}&gt;</span>
             <div class="mr-to">A: ${U.esc(m.to.map(who).join(', ') || '—')}${m.cc.length ? ` · Cc: ${U.esc(m.cc.map(who).join(', '))}` : ''}</div>
@@ -121,57 +122,119 @@ const MailView = (() => {
       .catch(() => { if (sel === m.id) paint(null); });
   }
 
+  /* Riga email per «Le più importanti» e «Ultime ricevute» */
+  function erow(e, { live = false } = {}) {
+    const d = new Date(e.received);
+    const ok = !isNaN(d);
+    const info = Recap.emailInfo(e.messageId);
+    const tags = Recap.tagsFor(e.messageId);
+    const g = Recap.data && Recap.data.generatedAt ? new Date(Recap.data.generatedAt) : null;
+    const fresh = live && !info && !Recap.forMessage(e.messageId) && g && ok && d > g;
+    const awaiting = info ? info.awaitingReply : e.awaitingReply, inst = info ? info.institution : e.institution;
+    return `<a class="erow ${e.unread ? 'unread' : ''}" href="#/posta/${encodeURIComponent(e.messageId)}">
+      <span class="avatar lg" style="--pc:${pcolor(e.fromAddress)}">${U.esc(U.initials(e.from || e.fromAddress || '?'))}</span>
+      <span class="er-main">
+        <span class="er-top"><span class="er-from">${U.esc(e.from || e.fromAddress)}</span>
+          ${awaiting ? '<span class="er-badge wait">In attesa di risposta</span>' : ''}${inst ? '<span class="er-badge inst">Scuola / ente</span>' : ''}
+          <span class="er-date">${ok ? shortDate(d) : ''}</span></span>
+        <span class="er-subj">${U.esc(e.subject)}</span>
+        ${(info && info.why) || e.why ? `<span class="er-why">${U.esc((info && info.why) || e.why)}</span>` : (e.preview ? `<span class="er-why muted">${U.esc(e.preview)}</span>` : '')}
+        ${fresh ? '<span class="er-new">Arrivata dopo l\'ultimo recap: verrà analizzata al prossimo</span>' : ''}
+      </span></a>${tags.length ? `<div class="er-tags">${RecapUI.tagChips(tags, tag)}</div>` : ''}`;
+  }
+  const liveRow = m => ({ messageId: m.id, from: m.from.name || m.from.address, fromAddress: m.from.address, subject: m.subject, received: m.received, preview: m.preview, unread: !m.isRead });
+
+  function readPage(root, m) {
+    root.innerHTML = `<div class="view mail">
+      <header class="page-head"><div><button type="button" class="btn btn-sm" data-act="mail-back">${icon('chevL')}Torna al recap</button></div></header>
+      <section class="card mail-read">${readHTML(m)}</section></div>`;
+    mountBody(m);
+  }
+
   function render(root, arg) {
     sel = arg ? decodeURIComponent(arg) : null;
     if (Auth.mode === 'local') {
       root.innerHTML = `<div class="view mail"><header class="page-head"><div><h1 class="page-title">Posta</h1></div></header>
         <section class="card toned tone-cyan"><h3 class="card-title">${ibadge('mail')}<span>Disponibile nella versione online</span></h3>
-        <p class="note-box" style="margin:0">Questa è la versione locale aperta dal file: la posta Outlook si legge nella versione online, dopo l'accesso con il tuo account Microsoft:
+        <p class="note-box" style="margin:0">Questa è la versione locale aperta dal file: il recap e la posta Outlook sono nella versione online, dopo l'accesso con il tuo account Microsoft:
         <a href="${CONFIG.redirectUri}" target="_blank" rel="noopener">${CONFIG.redirectUri}</a></p></section></div>`;
       return;
     }
-    const m = sel ? Outlook.message(sel) : null;
-    if (m) folder = Outlook.messages('sent').some(x => x.id === m.id) && !Outlook.messages('inbox').some(x => x.id === m.id) ? 'sent' : folder;
-    const unread = Outlook.messages('inbox').filter(x => !x.isRead).length;
+    if (sel) {
+      const m = Outlook.message(sel);
+      if (m) {
+        folder = Outlook.messages('sent').some(x => x.id === m.id) && !Outlook.messages('inbox').some(x => x.id === m.id) ? 'sent' : 'inbox';
+        readPage(root, m);
+      } else {
+        root.innerHTML = `<div class="view mail"><header class="page-head"><div><button type="button" class="btn btn-sm" data-act="mail-back">${icon('chevL')}Torna al recap</button></div></header>
+          <section class="card mail-read"><div class="mr-empty"><p>${navigator.onLine ? 'Caricamento dell\'email…' : 'Email non disponibile offline.'}</p></div></section></div>`;
+        Outlook.fetchMessage(sel);
+      }
+      return;
+    }
+
     const at = Outlook.mailAt ? new Date(Outlook.mailAt) : null;
     const offline = !navigator.onLine;
+    const R = Recap.data;
+    const imp = Recap.important(tag);
+    const recent = Outlook.messages('inbox').slice(0, 5).map(liveRow).filter(e => !tag || Recap.tagsFor(e.messageId).some(t => t.toLowerCase() === tag.toLowerCase()));
+    const unread = Outlook.messages('inbox').filter(x => !x.isRead).length;
+
     root.innerHTML = `<div class="view mail">
       <header class="page-head">
         <div><h1 class="page-title">Posta</h1>
-          <p class="page-sub">${U.esc((Auth.account && Auth.account.username) || '')}${at ? ` · aggiornata alle ${U.pad(at.getHours())}:${U.pad(at.getMinutes())}` : ''}</p></div>
-        <div class="head-actions"><button class="btn" data-act="outlook-refresh" ${offline ? 'disabled' : ''}>${icon('refresh')}<span>${Outlook.busy ? 'Aggiornamento…' : 'Aggiorna'}</span></button></div>
+          <p class="page-sub">Recap di Claude e email da tenere d'occhio${at ? ` · posta aggiornata alle ${U.pad(at.getHours())}:${U.pad(at.getMinutes())}` : ''}</p></div>
+        <div class="head-actions"><button class="btn" data-act="outlook-refresh" ${offline ? 'disabled' : ''}>${icon('refresh')}<span>${Outlook.busy || Recap.busy ? 'Aggiornamento…' : 'Aggiorna'}</span></button></div>
       </header>
       ${Outlook.error ? `<div class="banner">${U.esc(Outlook.error)}</div>` : ''}
-      ${offline ? '<div class="banner">Sei offline: vedi le email salvate sul dispositivo all\'ultimo aggiornamento.</div>' : ''}
-      <div class="mail-layout ${m ? 'has-sel' : ''}">
-        <section class="card mail-list-card">
-          <div class="seg mail-tabs">
-            <button type="button" class="seg-btn ${folder === 'inbox' ? 'on' : ''}" data-act="mail-folder" data-v="inbox">${icon('inbox', 'ic-xs')}Posta in arrivo${unread ? ` <span class="n-badge">${unread}</span>` : ''}</button>
-            <button type="button" class="seg-btn ${folder === 'sent' ? 'on' : ''}" data-act="mail-folder" data-v="sent">${icon('arrowR', 'ic-xs')}Inviata</button>
-          </div>
-          <div class="mail-search"><input class="input input-sm" type="search" placeholder="Cerca in oggetto, mittente, testo…" value="${U.esc(q)}" data-role="mail-q" aria-label="Cerca nella posta"></div>
-          <div class="mail-filters">${FILTERS.map(([k, l]) => `<button type="button" class="chip ${filter === k ? 'on' : ''}" style="--c:#0891B2" data-act="mail-filter" data-v="${k}">${l}</button>`).join('')}</div>
-          <div class="mail-list" data-role="mail-list">${listHTML()}</div>
+      ${Recap.error ? `<div class="banner">${U.esc(Recap.error)}</div>` : ''}
+      ${offline ? '<div class="banner">Sei offline: vedi il recap e le email salvate sul dispositivo.</div>' : ''}
+      <div class="dash-grid">
+        <section class="card toned tone-violet span-12 recap-main">
+          <h3 class="card-title">${ibadge('sparkle')}<span>Recap della posta<span class="sub">Preparato da Claude · giorni feriali alle 7:40 e 13:40</span></span></h3>
+          ${R ? `${RecapUI.header()}${RecapUI.tagBar(tag)}${tag ? `<div class="tag-active">Filtro attivo: <b>${U.esc(tag)}</b></div>` : ''}${RecapUI.columns({ limit: 50, tag })}${RecapUI.info(tag)}`
+            : `<div class="note-box" style="margin-top:0">${Recap.busy ? 'Caricamento del recap…' : 'Il recap non è ancora disponibile: compare qui dopo la prossima esecuzione dell\'attività pianificata.'}</div>`}
         </section>
-        <section class="card mail-read">${readHTML(m)}</section>
+        ${RecapUI.proposals()}
+        <section class="card toned tone-rose span-7">
+          <h3 class="card-title">${ibadge('flag')}<span>Le più importanti<span class="sub">Scuole ed enti · in attesa di una tua risposta</span></span><span class="count">${imp.length}</span></h3>
+          ${imp.length ? `<div class="erows">${imp.slice(0, 10).map(e => erow(e)).join('')}</div>` : `<div class="empty">${R ? 'Nessuna email importante in sospeso.' : 'Disponibile con il recap.'}</div>`}
+        </section>
+        <section class="card toned tone-sky span-5">
+          <h3 class="card-title">${ibadge('inbox')}<span>Ultime ricevute<span class="sub">${unread} non lette nella Posta in arrivo</span></span></h3>
+          ${recent.length ? `<div class="erows">${recent.map(e => erow(e, { live: true })).join('')}</div>` : `<div class="empty">${Outlook.busy ? 'Caricamento…' : 'Nessuna email salvata. Premi «Aggiorna».'}</div>`}
+        </section>
+        <section class="card span-12 all-mail ${showAll ? 'open' : ''}">
+          <button type="button" class="all-toggle" data-act="mail-all">${icon(showAll ? 'chevUp' : 'chevDown')}<span>${showAll ? 'Nascondi l\'elenco completo' : 'Mostra tutte le email salvate'}</span><span class="muted small">(${Outlook.messages('inbox').length} in arrivo · ${Outlook.messages('sent').length} inviate)</span></button>
+          ${showAll ? `<div class="all-body">
+            <div class="seg mail-tabs">
+              <button type="button" class="seg-btn ${folder === 'inbox' ? 'on' : ''}" data-act="mail-folder" data-v="inbox">${icon('inbox', 'ic-xs')}Posta in arrivo${unread ? ` <span class="n-badge">${unread}</span>` : ''}</button>
+              <button type="button" class="seg-btn ${folder === 'sent' ? 'on' : ''}" data-act="mail-folder" data-v="sent">${icon('arrowR', 'ic-xs')}Inviata</button>
+            </div>
+            <div class="mail-search"><input class="input input-sm" type="search" placeholder="Cerca in oggetto, mittente, testo…" value="${U.esc(q)}" data-role="mail-q" aria-label="Cerca nella posta"></div>
+            <div class="mail-filters">${FILTERS.map(([k, l]) => `<button type="button" class="chip ${filter === k ? 'on' : ''}" style="--c:#0891B2" data-act="mail-filter" data-v="${k}">${l}</button>`).join('')}</div>
+            <div class="mail-list" data-role="mail-list">${listHTML()}</div></div>` : ''}
+        </section>
       </div>
     </div>`;
     const qi = root.querySelector('[data-role="mail-q"]');
-    qi.addEventListener('input', () => { q = qi.value.trim(); root.querySelector('[data-role="mail-list"]').innerHTML = listHTML(); });
-    if (m) mountBody(m);
-    if (sel && !m) {
-      root.querySelector('.mail-read').innerHTML = `<div class="mr-empty"><p>${navigator.onLine ? 'Caricamento dell\'email…' : 'Email non disponibile offline.'}</p></div>`;
-      Outlook.fetchMessage(sel);
-    }
+    if (qi) qi.addEventListener('input', () => { q = qi.value.trim(); root.querySelector('[data-role="mail-list"]').innerHTML = listHTML(); });
   }
 
   Object.assign(Actions, {
-    'mail-folder': (id, el) => { folder = el.dataset.v; location.hash = '#/posta'; App.render(); },
+    'mail-folder': (id, el) => { folder = el.dataset.v; showAll = true; if (location.hash === '#/posta') App.render(); else location.hash = '#/posta'; },
+    'mail-all': () => { showAll = !showAll; App.render(); },
+    'tag-filter': (id, el) => {
+      const t = el.dataset.tag || null;
+      tag = t && tag && t.toLowerCase() === tag.toLowerCase() ? null : t;
+      if (App.current === 'posta' && location.hash === '#/posta') { App.render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      else location.hash = '#/posta';
+    },
     'mail-filter': (id, el) => { filter = el.dataset.v; App.render(); },
     'mail-more': () => Outlook.refreshMail({ folder, more: true }),
     'mail-back': () => { location.hash = '#/posta'; },
-    'recap-filter': (id, el) => { filter = el.dataset.v; folder = 'inbox'; q = ''; if (location.hash === '#/posta') App.render(); else location.hash = '#/posta'; },
-    'outlook-refresh': () => Outlook.refreshAll({ force: true }),
+    'recap-filter': (id, el) => { filter = el.dataset.v; folder = 'inbox'; q = ''; showAll = true; if (location.hash === '#/posta') App.render(); else location.hash = '#/posta'; },
+    'outlook-refresh': () => { Outlook.refreshAll({ force: true }); Recap.refresh(); },
     'mail-images': (id, el) => { const mid = el.dataset.mail; if (showImages.has(mid)) showImages.delete(mid); else showImages.add(mid); App.render(); },
     'reply-draft': (id, el) => {
       const mid = el.dataset.mail;

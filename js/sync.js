@@ -26,7 +26,7 @@ const Sync = (() => {
   let meta = { etag: null, last: 0, dirty: false };
   let status = 'idle'; // idle | syncing | ok | offline | error | auth | local
   let message = '';
-  let timer = null, running = null, again = false, folderReady = false;
+  let timer = null, running = null, again = false, folderReady = false, sessionSynced = false;
   const listeners = new Set();
 
   try { meta = { ...meta, ...JSON.parse(localStorage.getItem(META_KEY) || '{}') }; } catch (e) { /* ignora */ }
@@ -91,6 +91,7 @@ const Sync = (() => {
     running = (async () => {
       try {
         await cycle();
+        sessionSynced = true;
         set('ok');
       } catch (e) {
         if (e.auth) set('auth', 'Accesso scaduto');
@@ -135,7 +136,7 @@ const Sync = (() => {
 
   return {
     init, syncNow, schedule, describe, subscribe: f => listeners.add(f),
-    get status() { return status; }, get dirty() { return meta.dirty; }, get last() { return meta.last; },
+    get status() { return status; }, get sessionSynced() { return sessionSynced; }, get dirty() { return meta.dirty; }, get last() { return meta.last; },
     reset() { meta = { etag: null, last: 0, dirty: false }; saveMeta(); folderReady = false; },
   };
 })();

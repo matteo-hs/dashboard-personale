@@ -69,9 +69,17 @@ const SettingsView = (() => {
         <button class="btn btn-sm" data-act="recap-refresh">${icon('refresh')}Rileggi il recap</button>
       </section>
       <section class="card toned tone-indigo span-6">
-        <h3 class="card-title">${ibadge('edit')}<span>Firma delle risposte</span></h3>
-        <textarea class="input" rows="3" data-change="signature" aria-label="Firma">${U.esc(Prefs.get('signature') || 'Matteo Filippetti\nHub&Start srl')}</textarea>
+        <h3 class="card-title">${ibadge('edit')}<span>Firma delle risposte<span class="sub">Usata dall'app e da Claude nelle bozze</span></span></h3>
+        <textarea class="input" rows="3" data-change="signature" aria-label="Firma">${U.esc(Store.settings().signature || '')}</textarea>
         <p class="form-hint" style="margin:8px 0 0">Aggiunta in fondo alle bozze di risposta (si può togliere ogni volta).</p>
+      </section>
+      <section class="card toned tone-teal span-12">
+        <h3 class="card-title">${ibadge('tag')}<span>Hashtag del recap<span class="sub">Claude usa questo elenco più i nomi dei tuoi progetti per classificare le email</span></span></h3>
+        <div class="tags tags-edit">${Store.settings().hashtags.map((t, i) => `<span class="tag static" style="--c:${RecapUI.tagColor(t)}">${U.esc(t)}<button type="button" class="tag-x" data-act="tag-remove" data-i="${i}" aria-label="Rimuovi ${U.esc(t)}">${icon('x')}</button></span>`).join('')}</div>
+        <form class="add-row" data-form="add-hashtag"><input class="input input-sm" name="tag" placeholder="Nuovo hashtag, es. #orientamento" autocomplete="off">
+          <button class="btn btn-sm btn-primary" type="submit">${icon('plus')}Aggiungi</button>
+          <button class="btn btn-sm btn-ghost" type="button" data-act="tags-reset">Ripristina predefiniti</button></form>
+        <p class="form-hint" style="margin:10px 0 0">Le modifiche valgono dal recap successivo. I nomi dei progetti diventano hashtag in automatico (es. «Campus Natale» → #CampusNatale).</p>
       </section>`;
 
     root.innerHTML = `<div class="view settings">
@@ -117,13 +125,22 @@ const SettingsView = (() => {
           <div class="seg">${themeBtn('auto', 'Automatico', 'monitor')}${themeBtn('light', 'Chiaro', 'sun')}${themeBtn('dark', 'Scuro', 'moon')}</div>
           <p class="form-hint" style="margin:12px 0 0">«Automatico» segue l'impostazione del sistema operativo.</p>
         </section>
+        <section class="card toned tone-slate span-6">
+          <h3 class="card-title">${ibadge('refresh')}<span>App e aggiornamenti</span></h3>
+          <p style="margin:0 0 12px;font-size:14px">Versione installata: <strong>v${CONFIG.version}</strong> · pubblicata online: <strong data-role="ver-avail">…</strong></p>
+          <div class="data-actions">
+            <button class="btn btn-primary" data-act="check-update">${icon('refresh')}<span>Verifica aggiornamenti</span></button>
+            <button class="btn btn-ghost" data-act="force-update">${icon('alert')}Forza aggiornamento</button>
+          </div>
+          <p class="form-hint" style="margin:10px 0 0">«Forza aggiornamento» serve se l'app resta bloccata su una versione vecchia: riscarica i file, i dati restano.</p>
+        </section>
       </div>
     </div>`;
   }
 
   Object.assign(Changes, {
     pref: el => { Prefs.set(el.dataset.key, el.checked); App.render(); },
-    signature: el => { Prefs.set('signature', el.value.trim()); UI.toast('Firma salvata'); },
+    signature: el => { Store.setSettings({ signature: el.value.trim() }); UI.toast('Firma salvata'); },
     'label-color': el => Store.updateLabel(el.dataset.id, { color: el.value }),
     'label-autocal': el => Store.updateLabel(el.dataset.id, { autoCal: el.checked }),
     'label-name': el => { const v = el.value.trim(); if (v) Store.updateLabel(el.dataset.id, { name: v }); else App.render(); },
@@ -146,6 +163,13 @@ const SettingsView = (() => {
     },
   });
   Object.assign(Forms, {
+    'add-hashtag': f => {
+      const v = f.elements.tag.value.trim().replace(/^#*/, '#').replace(/[^\p{L}\p{N}_&#-]/gu, '').slice(0, 30);
+      if (v.length < 2) return;
+      const cur = Store.settings().hashtags;
+      if (cur.some(t => t.toLowerCase() === v.toLowerCase())) { UI.toast('Hashtag già presente'); return; }
+      Store.setSettings({ hashtags: [...cur, v] });
+    },
     'add-project': f => { const n = f.elements.name.value.trim(); if (n) { Store.addProject(n); UI.toast('Progetto creato'); } },
     'add-person': f => {
       const n = f.elements.name.value.trim(); if (!n) return;
@@ -181,8 +205,27 @@ const SettingsView = (() => {
         Store.resetAll(); UI.toast('Dati azzerati');
       }
     },
+    'tag-remove': (id, el) => { const cur = [...Store.settings().hashtags]; cur.splice(+el.dataset.i, 1); Store.setSettings({ hashtags: cur }); },
+    'tags-reset': async () => { if (await UI.confirm('Ripristinare l\'elenco predefinito degli hashtag?', { ok: 'Ripristina', title: 'Hashtag' })) Store.setSettings({ hashtags: [...DEFAULT_HASHTAGS] }); },
+    'check-update': async (id, el) => {
+      el.disabled = true; el.querySelector('span').textContent = 'Verifica in corso…';
+      const r = await PWA.checkAndUpdate();
+      if (r.state === 'updating') UI.toast('Aggiornamento in corso: l\'app si ricarica');
+      else {
+        el.disabled = false; el.querySelector('span').textContent = 'Verifica aggiornamenti';
+        UI.toast(r.state === 'offline' ? 'Sei offline: riprova con la rete' : r.state === 'unsupported' ? 'Aggiornamenti automatici non disponibili qui' : `Sei già all'ultima versione (v${CONFIG.version})`);
+      }
+    },
+    'force-update': async () => {
+      if (await UI.confirm('Riscaricare da capo i file dell\'app? I tuoi dati (task, impostazioni, posta salvata) restano dove sono.', { ok: 'Forza aggiornamento', title: 'Forza aggiornamento' })) PWA.forceUpdate();
+    },
     theme: (id, el) => { Theme.set(el.dataset.v); App.render(); },
   });
 
-  return { render };
+  function after(root) {
+    const el = root.querySelector('[data-role="ver-avail"]');
+    if (el) PWA.availableVersion().then(v => { el.textContent = v ? `v${v}` : 'non disponibile'; if (v && v !== CONFIG.version) el.classList.add('ver-new'); });
+  }
+  const renderAll = root => { render(root); after(root); };
+  return { render: renderAll };
 })();

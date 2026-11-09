@@ -23,6 +23,11 @@ const STATUS = {
 };
 const STATUS_ORDER = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 const STORE_KEY = 'hs-dashboard-v1';
+/* Vocabolario hashtag predefinito (modificabile in Impostazioni; letto anche dall'attività di Claude) */
+const DEFAULT_HASHTAGS = ['#robotica', '#coding', '#stampa3D', '#tagliolaser', '#laboratorio', '#campus', '#extracurricolare',
+  '#formazionedocenti', '#bando', '#finanziamento', '#preventivo', '#proposta', '#contratto', '#fattura', '#pagamenti', '#iscrizioni',
+  '#scadenza', '#riunione', '#calendario', '#logistica', '#materiali', '#formatori', '#scuola', '#famiglie', '#fornitori', '#team', '#TACTIVITY'];
+const DEFAULT_SIGNATURE = 'Matteo Filippetti\nHub&Start srl';
 const TOMBSTONE_DAYS = 120;
 
 const Store = (() => {
@@ -39,6 +44,7 @@ const Store = (() => {
     people: [],
     dayPrefs: {},
     handled: {},
+    settings: { hashtags: [...DEFAULT_HASHTAGS], signature: DEFAULT_SIGNATURE, ts: 0 },
     deleted: {},
     createdAt: now(),
     updatedAt: now(),
@@ -49,6 +55,8 @@ const Store = (() => {
     if (!s.dayPrefs || typeof s.dayPrefs !== 'object') s.dayPrefs = {};
     if (!s.deleted || typeof s.deleted !== 'object') s.deleted = {};
     if (!s.handled || typeof s.handled !== 'object') s.handled = {};
+    if (!s.settings || typeof s.settings !== 'object') s.settings = {};
+    s.settings = { hashtags: [...DEFAULT_HASHTAGS], signature: DEFAULT_SIGNATURE, ts: 0, ...s.settings };
     for (const b of BASE_LABELS) if (!s.labels.find(l => l.id === b.id)) s.labels.unshift({ ...b, updatedAt: 0 });
     s.labels = s.labels.map(l => ({ updatedAt: 0, ...l }));
     s.people = (s.people || []).map(p => ({ role: '', email: '', updatedAt: 0, ...p }));
@@ -222,6 +230,11 @@ const Store = (() => {
   const isHandled = id => !!handledInfo(id);
   function markHandled(id, a) { state.handled[id] = { a: a || null, ts: now() }; commit(); }
 
+  /* Impostazioni condivise tra dispositivi */
+  const settings = () => state.settings;
+  function setSettings(patch) { state.settings = { ...state.settings, ...patch, ts: now() }; commit(); }
+  const wasDeleted = id => !!state.deleted[id];
+
   /* ---------- Sincronizzazione: unione di due stati ---------- */
   function signature(s) {
     const out = [];
@@ -231,6 +244,7 @@ const Store = (() => {
     Object.entries(s.dayPrefs).forEach(([k, v]) => out.push(`d${k}:${v.ts || 0}`));
     Object.keys(s.deleted).forEach(k => out.push(`x${k}`));
     Object.entries(s.handled || {}).forEach(([k, v]) => out.push(`h${k}:${v.ts || 0}`));
+    out.push(`s:${(s.settings && s.settings.ts) || 0}`);
     return out.sort().join('|');
   }
   function mergeStates(a, b) {
@@ -255,6 +269,7 @@ const Store = (() => {
     for (const [k, v] of Object.entries(a.dayPrefs)) if (!m.dayPrefs[k] || (v.ts || 0) > (m.dayPrefs[k].ts || 0)) m.dayPrefs[k] = v;
     m.handled = { ...(b.handled || {}) };
     for (const [k, v] of Object.entries(a.handled || {})) if (!m.handled[k] || (v.ts || 0) > (m.handled[k].ts || 0)) m.handled[k] = v;
+    m.settings = ((a.settings && a.settings.ts) || 0) >= ((b.settings && b.settings.ts) || 0) ? a.settings : b.settings;
     const hLimit = now() - 90 * 86400000;
     for (const [k, v] of Object.entries(m.handled)) if ((v.ts || 0) < hLimit) delete m.handled[k];
     for (const b0 of BASE_LABELS) if (!m.labels.find(l => l.id === b0.id)) m.labels.unshift({ ...b0, updatedAt: 0 });
@@ -361,7 +376,7 @@ const Store = (() => {
     person, people, ensurePerson, addPerson, updatePerson, deletePerson, tasksWithPerson,
     task, allTasks, tasksOn, calendarTasksOn, tasksBetween, addTask, updateTask, deleteTask, restoreTask,
     setStatus, toggleDone, toggleCalendar, addComment, deleteComment, related, relatedCount, dayPref, setDayPref,
-    handledInfo, isHandled, markHandled,
+    handledInfo, isHandled, markHandled, settings, setSettings, wasDeleted,
     mergeIn, snapshot, mergeStates, normalize, signature,
     exportJSON, importJSON, hasDemo, removeDemo, resetAll,
   };

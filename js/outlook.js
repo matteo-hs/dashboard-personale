@@ -131,15 +131,27 @@ const Outlook = (() => {
   }
 
   /* Bozza di risposta in Outlook (cartella Bozze). L'app non invia mai email. */
+  const textToHtml = t => `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">${
+    U.esc(t).split(/\n{2,}/).map(par => `<p style="margin:0 0 10pt">${par.replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
   async function createReplyDraft(id, text, all = false) {
     if (!enabled()) throw new Error('Serve l\'accesso Microsoft');
     if (!navigator.onLine) throw new Error('Sei offline: la bozza si può creare solo con la rete');
     const r = await Graph.call(`/me/messages/${encodeURIComponent(id)}/${all ? 'createReplyAll' : 'createReply'}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ comment: text }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
     if (r.status === 403) throw new Error('Manca il permesso «Mail.ReadWrite» nel portale Microsoft: senza, l\'app non può creare bozze.');
     if (!r.ok) throw await Graph.fail(r, 'Creazione bozza');
     const j = await r.json();
+    // testo in paragrafi sopra il messaggio originale citato
+    const orig = (j.body && j.body.content) || '';
+    const mine = textToHtml(text);
+    const content = j.body && /html/i.test(j.body.contentType || '')
+      ? (/<body[^>]*>/i.test(orig) ? orig.replace(/<body[^>]*>/i, m => m + mine) : mine + orig)
+      : mine + `<pre>${U.esc(orig)}</pre>`;
+    const p = await Graph.call(`/me/messages/${encodeURIComponent(j.id)}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: { contentType: 'HTML', content } }),
+    });
+    if (!p.ok) throw await Graph.fail(p, 'Testo della bozza (la bozza vuota è comunque in Outlook)');
     drafts[id] = { id: j.id, webLink: j.webLink, ts: Date.now(), all };
     try { localStorage.setItem(LS_DRAFTS, JSON.stringify(drafts)); } catch (e) { /* ignora */ }
     notify();
