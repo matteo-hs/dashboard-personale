@@ -499,33 +499,60 @@ select.input-sm { padding: 0 8px; width: auto; }
     var(--surface);
   border-color: color-mix(in srgb, var(--page) 18%, var(--border));
 }
-.dh-top { display: flex; align-items: center; gap: 18px; }
-.dh-date { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+.dh-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; }
+.dh-date { display: flex; align-items: center; justify-content: center; gap: 16px; min-width: 0; }
 .dh-num {
   width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; flex: none;
   font-family: var(--font-display); font-size: 31px; font-weight: 800; color: #fff;
   background: linear-gradient(140deg, var(--page), var(--page2)); box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--page) 85%, transparent);
 }
+.dh-txt { min-width: 0; }
 .dh-wd { font-family: var(--font-display); font-size: 23px; font-weight: 700; text-transform: capitalize; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; line-height: 1.2; }
 .dh-wd .rel { font-family: var(--font); font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 800; color: var(--page); background: color-mix(in srgb, var(--page) 12%, var(--surface)); padding: 3px 8px; border-radius: 7px; }
 .dh-my { color: var(--muted); font-size: 14.5px; text-transform: capitalize; margin-top: 2px; }
-.dh-progress { width: 230px; flex: none; }
+.dh-foot { display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px dashed color-mix(in srgb, var(--page) 22%, var(--border)); }
+.dh-progress { width: 230px; flex: none; margin-left: auto; }
 .dh-pl { font-size: 13px; color: var(--muted); margin-bottom: 7px; }
 .dh-pl strong { color: var(--text); font-size: 15px; }
 .pager { border-radius: 50%; width: 42px; height: 42px; flex: none; }
-.dh-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed color-mix(in srgb, var(--page) 22%, var(--border)); }
+.dh-stats { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 auto; min-width: 0; }
 .dh-stat { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 9px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text-2); background: color-mix(in srgb, var(--surface) 75%, transparent); border: 1px solid var(--border); }
 .dh-stat b { font-size: 14.5px; color: var(--text); }
 .dh-stat.zero { opacity: .55; }
+
+/* Giornata di oggi: pannello pieno a contrasto (colori scuriti per tenere leggibile il testo bianco) */
+.day-hero.is-today {
+  --hero-a: color-mix(in srgb, var(--page) 78%, #000);
+  --hero-b: color-mix(in srgb, var(--page2) 72%, #000);
+  background:
+    radial-gradient(90% 140% at 50% -20%, rgba(255,255,255,.16), transparent 60%),
+    linear-gradient(120deg, var(--hero-a), var(--hero-b));
+  border-color: transparent; color: #fff;
+  box-shadow: 0 18px 36px -18px color-mix(in srgb, var(--page) 80%, transparent);
+}
+.is-today .dh-num { background: #fff; color: var(--hero-a); box-shadow: 0 10px 22px -12px rgba(0,0,0,.45); }
+.is-today .dh-wd { color: #fff; }
+.is-today .dh-wd .rel { color: var(--hero-a); background: #fff; }
+.is-today .dh-my { color: rgba(255,255,255,.88); }
+.is-today .pager { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); color: #fff; }
+.is-today .pager:hover { background: rgba(255,255,255,.26); }
+.is-today .dh-foot { border-top-color: rgba(255,255,255,.3); }
+.is-today .dh-stat { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.28); color: rgba(255,255,255,.92); }
+.is-today .dh-stat b { color: #fff; }
+.is-today .dh-stat.zero { opacity: .6; }
+.is-today .dh-stat .sdot { background: #fff; border-radius: 50%; padding: 1.5px; box-sizing: content-box; }
+.is-today .dh-pl { color: rgba(255,255,255,.88); }
+.is-today .dh-pl strong { color: #fff; }
+.is-today .bar { background: rgba(255,255,255,.25); }
+.is-today .bar > span { background: #fff; }
+
 @media (max-width: 760px) {
   .day-hero { padding: 16px; }
-  .dh-top { flex-wrap: wrap; gap: 12px; }
-  .dh-date { order: 1; flex-basis: calc(100% - 112px); gap: 12px; }
-  .pager[data-nav="prev"] { order: 0; }
-  .pager[data-nav="next"] { order: 2; }
-  .dh-progress { order: 3; width: 100%; }
+  .dh-top { gap: 10px; }
+  .dh-date { gap: 12px; }
   .dh-num { width: 52px; height: 52px; font-size: 25px; border-radius: 15px; }
   .dh-wd { font-size: 18px; }
+  .dh-progress { width: 100%; margin-left: 0; order: -1; }
   .dh-stat { height: 30px; font-size: 12.5px; }
 }
 

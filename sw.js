@@ -1,6 +1,6 @@
 /* Service worker: tiene in memoria i file dell'app per l'uso offline.
    IMPORTANTE: a ogni nuova versione aggiornare VERSION (e l'elenco ASSETS se cambiano i file). */
-const VERSION = 'hs-0.5.2';
+const VERSION = 'hs-0.5.3';
 const ASSETS = [
   './',
   './index.html',

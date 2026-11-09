@@ -191,17 +191,19 @@ const AgendaView = (() => {
       </header>
       ${weekStrip()}
       <div class="page-wrap"><div class="agenda-grid ${anim}">
-        <div class="card day-hero ag-hero">
+        <div class="card day-hero ag-hero${date === U.todayISO() ? ' is-today' : ''}">
           <div class="dh-top">
             <button class="btn btn-icon pager" data-nav="prev" aria-label="Giorno precedente" title="Giorno precedente">${icon('chevL')}</button>
             <div class="dh-date"><div class="dh-num">${d.getDate()}</div>
-              <div><div class="dh-wd">${U.WEEKDAYS[d.getDay()]}${rel ? `<span class="rel">${rel}</span>` : ''}</div>
+              <div class="dh-txt"><div class="dh-wd">${U.WEEKDAYS[d.getDay()]}${rel ? `<span class="rel">${rel}</span>` : ''}</div>
               <div class="dh-my">${U.MONTHS[d.getMonth()]} ${d.getFullYear()}</div></div></div>
-            <div class="dh-progress"><div class="dh-pl"><strong>${doneN}</strong> di ${active} completati</div>
-              <div class="bar"><span style="width:${pct}%"></span></div></div>
             <button class="btn btn-icon pager" data-nav="next" aria-label="Giorno successivo" title="Giorno successivo">${icon('chevR')}</button>
           </div>
-          <div class="dh-stats">${stats}</div>
+          <div class="dh-foot">
+            <div class="dh-stats">${stats}</div>
+            <div class="dh-progress"><div class="dh-pl"><strong>${doneN}</strong> di ${active} completati</div>
+              <div class="bar"><span style="width:${pct}%"></span></div></div>
+          </div>
         </div>
         ${todoHTML(tasks, events)}
         ${peopleHTML(tasks)}
