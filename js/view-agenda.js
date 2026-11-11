@@ -115,7 +115,7 @@ const AgendaView = (() => {
   function todoHTML(tasks, events) {
     const list = tasks.filter(t => !t.start);
     const allDay = events.filter(e => e.allDay);
-    return `<section class="card toned tone-indigo ag-todo">
+    return `<section class="card toned tone-pink ag-todo">
       <h3 class="card-title">${ibadge('list')}<span>In giornata<span class="sub">Attività senza orario</span></span>
         <button class="btn btn-sm btn-ghost band-add" data-act="new-task" data-date="${date}" data-start="">${icon('plus')}Aggiungi</button></h3>
       ${allDay.length ? `<div class="todo-list" style="margin-bottom:8px">${allDay.map(UI.eventLine).join('')}</div>` : ''}
@@ -134,12 +134,19 @@ const AgendaView = (() => {
     const lset = new Set();
     tasks.forEach(t => t.labels.forEach(id => lset.add(id)));
     const labels = [...lset].map(Store.label).filter(Boolean).map(l => UI.labelChip(l)).join('');
-    return `<section class="card toned tone-violet ag-people">
-      <h3 class="card-title">${ibadge('users')}<span>Persone ed etichette<span class="sub">Coinvolte nei task della giornata</span></span></h3>
-      <div class="pl-list">${people || '<div class="muted small">Nessuna persona associata ai task di questa giornata.</div>'}</div>
-      <div class="sub-title">Etichette</div>
-      <div class="side-chips">${labels || '<span class="muted small">Nessuna etichetta.</span>'}</div>
-      ${labels ? '<p class="form-hint" style="margin:10px 0 0">Clicca un\'etichetta per vedere tutti i task collegati.</p>' : ''}
+    const nP = pmap.size;
+    const nT = tasks.filter(t => t.people.some(id => Store.person(id))).length;
+    const summary = nP ? `${nP} ${nP === 1 ? 'persona coinvolta' : 'persone coinvolte'} in ${nT} task` : 'Nessuna persona coinvolta';
+    const open = Prefs.get('agPeopleOpen') !== false;
+    return `<section class="card toned tone-violet ag-people${open ? '' : ' collapsed'}">
+      <h3 class="card-title pl-head" data-act="toggle-people" role="button" tabindex="0" aria-expanded="${open}">${ibadge('users')}<span>Persone ed etichette<span class="sub pl-sub-open">Coinvolte nei task della giornata</span><span class="sub pl-sub-closed">${summary}</span></span>
+        <span class="collapse-btn" title="${open ? 'Comprimi' : 'Espandi'}" aria-hidden="true">${icon('chevDown')}</span></h3>
+      <div class="pl-body">
+        <div class="pl-list">${people || '<div class="muted small">Nessuna persona associata ai task di questa giornata.</div>'}</div>
+        <div class="sub-title">Etichette</div>
+        <div class="side-chips">${labels || '<span class="muted small">Nessuna etichetta.</span>'}</div>
+        ${labels ? '<p class="form-hint" style="margin:10px 0 0">Clicca un\'etichetta per vedere tutti i task collegati.</p>' : ''}
+      </div>
     </section>`;
   }
 
@@ -229,6 +236,17 @@ const AgendaView = (() => {
     const p = Store.dayPref(date);
     Store.setDayPref(date, { [band]: p[band] ? 0 : 30 });
   };
+  /* Riquadro «Persone ed etichette»: compatto o espanso, scelta ricordata su questo dispositivo */
+  Actions['toggle-people'] = (id, el) => {
+    const sec = el.closest('.ag-people');
+    const open = sec.classList.toggle('collapsed') === false;
+    Prefs.set('agPeopleOpen', open);
+    el.setAttribute('aria-expanded', String(open));
+    const b = el.querySelector('.collapse-btn'); if (b) b.title = open ? 'Comprimi' : 'Espandi';
+  };
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('pl-head')) { e.preventDefault(); e.target.click(); }
+  });
   Changes['jump-agenda'] = el => { if (el.value) go(el.value); };
 
   return { render, nav, swipe: true, get date() { return date; } };

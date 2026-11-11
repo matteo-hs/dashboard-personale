@@ -2,3 +2,5 @@
 PROGETTO.md
 dashboard-hs-backup-*.json
 *.bak
+# Anteprime salvate dall'app Claude: non vanno pubblicate
+Claude outputs/

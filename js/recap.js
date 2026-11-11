@@ -39,6 +39,7 @@ const Recap = (() => {
       received: str(x.received, 40), reason: str(x.reason, 500), due: isoDate(x.due),
       suggestedReply: str(x.suggestedReply, 4000), tags: tags(x.tags),
       status: ['open', 'done', 'draft'].includes(x.status) ? x.status : 'open', draftWebLink: str(x.draftWebLink, 1000),
+      news: str(x.news, 400),
     }));
     const emails = (Array.isArray(j.emails) ? j.emails : []).slice(0, 150).map(x => ({
       messageId: str(x.messageId, 300), webLink: str(x.webLink, 1000), from: str(x.from, 120), fromAddress: str(x.fromAddress, 200),
@@ -121,6 +122,36 @@ const Recap = (() => {
     [...data.items.filter(open), ...data.emails].forEach(x => (x.tags || []).forEach(t => count.set(t, (count.get(t) || 0) + 1)));
     return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) => ({ tag: t, n }));
   }
+  /* Novità rilevate dall'app (senza Claude): nuove email nella stessa conversazione di una voce aperta,
+     arrivate dopo l'email a cui la voce si riferisce, e risposte già inviate da Matteo */
+  const tried = new Set();
+  const ts = v => { const t = Date.parse(v || ''); return isNaN(t) ? 0 : t; };
+  function liveNews(x) {
+    if (!x || !x.messageId || !Outlook.enabled) return null;
+    const m = Outlook.message(x.messageId);
+    if (!m) { if (!tried.has(x.messageId)) { tried.add(x.messageId); Outlook.fetchMessage(x.messageId); } return null; }
+    if (!m.conv) return null;
+    const after = Math.max(ts(x.received), ts(m.received));
+    const me = ((Auth.account && Auth.account.username) || '').toLowerCase();
+    const incoming = Outlook.messages('inbox').filter(e => e.conv === m.conv && e.id !== m.id && ts(e.received) > after && e.from.address !== me)
+      .sort((a, b) => ts(b.received) - ts(a.received));
+    const replied = Outlook.messages('sent').filter(e => e.conv === m.conv && ts(e.sent || e.received) > after)
+      .sort((a, b) => ts(b.sent || b.received) - ts(a.sent || a.received))[0] || null;
+    return incoming.length || replied ? { incoming, replied } : null;
+  }
+  /* Riepilogo per l'intestazione: questioni aperte con novità ed email nuove non collegate a nessuna voce */
+  function newsSummary() {
+    if (!data || !Outlook.enabled) return null;
+    const open = data.items.filter(x => x.status !== 'done' && !Store.isHandled(x.id));
+    const withNews = open.filter(x => { const n = liveNews(x); return n && n.incoming.length; });
+    const linked = new Set();
+    open.forEach(x => { const n = liveNews(x); if (n) n.incoming.forEach(e => linked.add(e.id)); });
+    const known = new Set([...data.items.map(x => x.messageId), ...data.emails.map(x => x.messageId)]);
+    const g = ts(data.updatedAt || data.generatedAt);
+    const fresh = g ? Outlook.messages('inbox').filter(e => ts(e.received) > g && !linked.has(e.id) && !known.has(e.id)) : [];
+    return withNews.length || fresh.length ? { items: withNews.length, fresh: fresh.length } : null;
+  }
+
   const findItem = id => (data ? data.items.find(x => x.id === id) || null : null);
   const findProposal = id => (data ? data.proposals.find(x => x.id === id) || null : null);
 
@@ -134,7 +165,7 @@ const Recap = (() => {
   }
 
   return {
-    init, refresh, items, proposals, forMessage, emailInfo, tagsFor, important, allTags, findItem, findProposal, clean, importTasks,
+    init, refresh, items, proposals, liveNews, newsSummary, forMessage, emailInfo, tagsFor, important, allTags, findItem, findProposal, clean, importTasks,
     subscribe: f => listeners.add(f),
     get data() { return data; }, get busy() { return busy; }, get error() { return error; }, get at() { return at; },
   };

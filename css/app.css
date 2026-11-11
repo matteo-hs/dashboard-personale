@@ -648,6 +648,19 @@ select.input-sm { padding: 0 8px; width: auto; }
 .side-person { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .side-person .role { color: var(--muted); font-size: 12.5px; }
 .side-person .cnt { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 700; }
+/* Riquadro «Persone ed etichette» comprimibile */
+.pl-head { cursor: pointer; user-select: none; }
+.pl-head:focus-visible { outline: 2px solid color-mix(in srgb, var(--tone) 60%, transparent); outline-offset: 4px; border-radius: 10px; }
+.collapse-btn { margin-left: auto; width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--surface); border: 1px solid color-mix(in srgb, var(--tone) 25%, var(--border)); color: var(--tone-fg); transition: transform .2s, background .15s; }
+.collapse-btn svg { width: 18px; height: 18px; transform: rotate(180deg); transition: transform .2s; }
+.pl-head:hover .collapse-btn { background: color-mix(in srgb, var(--tone) 10%, var(--surface)); }
+.pl-sub-closed { display: none !important; }
+.ag-people.collapsed { padding-top: 16px; padding-bottom: 16px; }
+.ag-people.collapsed .card-title { margin-bottom: 0; }
+.ag-people.collapsed .pl-body { display: none; }
+.ag-people.collapsed .pl-sub-open { display: none !important; }
+.ag-people.collapsed .pl-sub-closed { display: block !important; color: var(--tone-fg); font-weight: 600; }
+.ag-people.collapsed .collapse-btn svg { transform: none; }
 .side-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .sub-title { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 18px 0 10px; }
 .next-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
@@ -995,6 +1008,20 @@ button.source-badge:hover, a.source-badge:hover { filter: brightness(.95); text-
 .rc-due { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--danger); flex: none; }
 .rc-subj { font-size: 13.5px; font-weight: 650; line-height: 1.35; word-break: break-word; }
 .rc-reason { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+/* Novità sulle questioni aperte */
+.rc-card.has-news { box-shadow: 0 0 0 2px color-mix(in srgb, var(--cal) 35%, transparent), var(--shadow-sm); }
+.rc-news { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; line-height: 1.4; color: var(--text-2); background: color-mix(in srgb, var(--cal) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--cal) 30%, var(--border)); border-radius: 9px; padding: 6px 8px; margin: 3px 0; text-decoration: none; }
+.rc-news svg { color: var(--cal); flex: none; margin-top: 2px; }
+.rc-news b { color: var(--cal); }
+.rc-news.live { background: color-mix(in srgb, var(--warning) 12%, var(--surface)); border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); }
+.rc-news.live svg, .rc-news.live b { color: color-mix(in srgb, var(--warning) 80%, #000); }
+:root[data-theme="dark"] .rc-news.live svg, :root[data-theme="dark"] .rc-news.live b { color: color-mix(in srgb, var(--warning) 75%, #fff); }
+a.rc-news.live:hover { border-color: var(--warning); }
+.rc-replied { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 700; color: var(--success); }
+.rc-replied .link-btn { font-size: 12px; }
+.rc-newsbar { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); background: color-mix(in srgb, var(--warning) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border)); border-radius: 12px; padding: 10px 14px; margin: -6px 0 16px; }
+.rc-newsbar svg { color: var(--warning); flex: none; margin-top: 3px; }
+.rc-newsbar-hint { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 .rc-draft { font-size: 12px; font-weight: 700; color: var(--success); display: flex; align-items: center; gap: 4px; }
 .rc-acts { display: flex; gap: 2px; margin: 2px -4px 0; }
 .rc-acts .act { height: 28px; font-size: 12px; padding: 0 7px; text-decoration: none; }

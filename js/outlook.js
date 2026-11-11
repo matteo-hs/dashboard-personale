@@ -232,8 +232,8 @@ const Outlook = (() => {
   /* ---------- Aggiornamento automatico ---------- */
   function refreshAll({ force = false } = {}) {
     if (!enabled()) return;
-    refreshMail({ folder: 'inbox' });
-    refreshMail({ folder: 'sent' });
+    // una cartella alla volta: le richieste in parallelo venivano scartate (la posta inviata non si aggiornava)
+    refreshMail({ folder: 'inbox' }).then(() => refreshMail({ folder: 'sent' }));
     const cur = U.todayISO().slice(0, 7);
     [-1, 0, 1].forEach(n => ensureMonth(shiftMonth(cur, n), { force }));
   }

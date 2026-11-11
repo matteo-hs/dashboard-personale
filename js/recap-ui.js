@@ -22,6 +22,16 @@ const RecapUI = (() => {
       ${active ? `<button type="button" class="link-btn" data-act="tag-filter" data-tag="">togli il filtro</button>` : ''}</div>`;
   }
 
+  function newsBanner() {
+    const n = Recap.newsSummary();
+    if (!n) return '';
+    const parts = [];
+    if (n.items) parts.push(`<b>${n.items === 1 ? '1 questione aperta ha' : `${n.items} questioni aperte hanno`} nuove email</b>`);
+    if (n.fresh) parts.push(`${n.fresh === 1 ? '1 email nuova' : `${n.fresh} email nuove`} non ancora nel recap`);
+    return `<div class="rc-newsbar">${icon('alert', 'ic-xs')}<span><b>Novità dopo l'ultimo recap:</b> ${parts.join(' · ')}.
+      <span class="rc-newsbar-hint">Per farle analizzare a Claude scrivi <b>«aggiorna»</b> nella chat del recap, oppure attendi il recap automatico.</span></span></div>`;
+  }
+
   function header() {
     const R = Recap.data; if (!R) return '';
     const g = R.generatedAt ? new Date(R.generatedAt) : null;
@@ -30,17 +40,36 @@ const RecapUI = (() => {
     const u = R.updatedAt ? new Date(R.updatedAt) : null;
     const when = d => `${(U.relDay(U.toISO(d)) || U.fmtShort(U.toISO(d))).toLowerCase()} alle ${U.pad(d.getHours())}:${U.pad(d.getMinutes())}`;
     return `${ok ? `<div class="rc-gen ${stale ? 'stale' : ''}">${icon('sparkle', 'ic-xs')}Preparato ${when(g)}${u && !isNaN(u) && u > g ? ` · aggiornato dalla chat ${when(u)}` : ''}${stale ? ' · non aggiornato di recente' : ''}</div>` : ''}
-      ${R.summary ? `<p class="rc-summary">${U.esc(R.summary)}</p>` : ''}`;
+      ${R.summary ? `<p class="rc-summary">${U.esc(R.summary)}</p>` : ''}
+      ${newsBanner()}`;
+  }
+
+  const hm = v => { const d = new Date(v); return isNaN(d) ? '' : `${(U.relDay(U.toISO(d)) || U.fmtShort(U.toISO(d))).toLowerCase()} alle ${U.pad(d.getHours())}:${U.pad(d.getMinutes())}`; };
+  function newsHTML(x) {
+    let h = '';
+    if (x.news) h += `<div class="rc-news">${icon('sparkle', 'ic-xs')}<span><b>Novità</b> · ${U.esc(x.news)}</span></div>`;
+    const live = Recap.liveNews(x);
+    if (live && live.incoming.length) {
+      const e = live.incoming[0];
+      const more = live.incoming.length > 1 ? ` (+${live.incoming.length - 1})` : '';
+      h += `<a class="rc-news live" href="#/posta/${encodeURIComponent(e.id)}" title="Apri la nuova email">${icon('alert', 'ic-xs')}<span><b>Novità!</b> Nuova email di ${U.esc(e.from.name || e.from.address)} ${U.esc(hm(e.received))}${more}${e.preview ? ` — «${U.esc(e.preview.slice(0, 110))}${e.preview.length > 110 ? '…' : ''}»` : ''}</span></a>`;
+    }
+    if (live && live.replied && x.category === 'reply') {
+      h += `<div class="rc-replied">${icon('check', 'ic-xs')}<span>Hai già risposto ${U.esc(hm(live.replied.sent || live.replied.received))}</span><button type="button" class="link-btn" data-act="recap-done" data-item="${U.esc(x.id)}">segna come fatta</button></div>`;
+    }
+    return h;
   }
 
   function card(x, { compact = false, tag = null } = {}) {
     const dr = (x.status === 'draft' ? { webLink: x.draftWebLink } : null) || (x.messageId ? Outlook.draftFor(x.messageId) : null);
     const due = x.due ? (U.relDay(x.due) || U.cap(U.fmtShort(x.due))) : '';
     const dl = dr && UI.safeUrl(dr.webLink);
-    return `<div class="rc-card prio-${x.priority}">
+    const live = Recap.liveNews(x);
+    return `<div class="rc-card prio-${x.priority}${(live && live.incoming.length) || x.news ? ' has-news' : ''}">
       <div class="rc-top"><span class="prio-tag">${PRIO_L[x.priority]}</span><span class="rc-from">${U.esc(x.from)}</span>${due ? `<span class="rc-due">${icon('clock', 'ic-xs')}${due}</span>` : ''}</div>
       ${x.messageId ? `<a class="rc-subj" href="#/posta/${encodeURIComponent(x.messageId)}" title="Apri l'email">${U.esc(x.subject)}</a>` : `<div class="rc-subj">${U.esc(x.subject)}</div>`}
       ${x.reason ? `<div class="rc-reason">${U.esc(x.reason)}</div>` : ''}
+      ${newsHTML(x)}
       ${!compact ? tagChips(x.tags, tag) : ''}
       ${dr ? `<div class="rc-draft">${icon('check', 'ic-xs')}Bozza creata${dl ? ` · <a href="${U.esc(dl)}" target="_blank" rel="noopener">apri in Outlook</a>` : ''}</div>` : ''}
       <div class="rc-acts">
@@ -52,7 +81,8 @@ const RecapUI = (() => {
 
   function columns({ limit = 6, compact = false, tag = null } = {}) {
     const col = (cat, cls, ic, title) => {
-      const list = Recap.items(cat, tag);
+      const hasNews = x => !!(x.news || ((Recap.liveNews(x) || {}).incoming || []).length);
+      const list = Recap.items(cat, tag).map((x, i) => ({ x, i })).sort((a, b) => (hasNews(b.x) - hasNews(a.x)) || a.i - b.i).map(o => o.x);
       return `<div class="mail-col ${cls} rc-col"><h5>${ibadge(ic, 'sm')}${title}<span class="rc-n">${list.length}</span></h5>
         ${list.length ? list.slice(0, limit).map(x => card(x, { compact, tag })).join('') + (list.length > limit ? `<a class="rc-more" href="#/posta">e altre ${list.length - limit} →</a>` : '') : '<p>Niente da segnalare.</p>'}</div>`;
     };
